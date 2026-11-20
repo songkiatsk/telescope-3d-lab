@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ห้องปฏิบัติการกล้องโทรทรรศน์ 3 มิติ | สื่อการสอนดาราศาสตร์ ม.ปลาย</title>
+  <!-- เมตาแท็กสำหรับแชร์ลิงก์ผ่าน LINE / Google Classroom / Facebook -->
+  <meta name="author" content="นายทรงเกียรติ สวนแก้ว" />
+  <meta name="description" content="สื่อการสอนดาราศาสตร์ 3 มิติแบบโต้ตอบได้ ครบทั้ง 3 ตระกูลกล้องโทรทรรศน์: สะท้อนแสง (ด็อบโซเนียน), หักเหแสง (ฐาน EQ), และแบบผสม (SCT/MAK GoTo) พร้อมเส้นทางแสง แอนิเมชั่นติดตั้ง และเกม 10 ข้อ" />
+  <meta property="og:title" content="🔭 ห้องปฏิบัติการกล้องโทรทรรศน์ 3 มิติ (ครบ 3 ประเภท)" />
+  <meta property="og:description" content="สำรวจโมเดล 3D โต้ตอบได้ เส้นทางแสงจริง แอนิเมชั่นติดตั้ง 8 ขั้นตอน เครื่องคำนวณทัศนศาสตร์ และเกมหาชิ้นส่วน" />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#030612" />
+
+  <!-- ฟอนต์ภาษาไทย Sarabun + ฟอนต์อวกาศ Orbitron สำหรับตัวเลข/รหัส HUD -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background-color: #030612;
+      color: #e2e8f0;
+      font-family: 'Sarabun', system-ui, -apple-system, sans-serif;
+      overflow-x: hidden;
+    }
+    .font-hud {
+      font-family: 'Orbitron', 'Sarabun', sans-serif;
+    }
+
+    /* พื้นหลังเนบิวลาและอวกาศลึก */
+    .nebula-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 65% 45% at 15% 18%, rgba(56, 189, 248, 0.16), transparent 68%),
+        radial-gradient(ellipse 55% 50% at 85% 22%, rgba(129, 140, 248, 0.16), transparent 65%),
+        radial-gradient(ellipse 50% 45% at 50% 88%, rgba(249, 115, 22, 0.11), transparent 70%),
+        radial-gradient(circle at 50% 50%, #070d20 0%, #030612 100%);
+    }
+
+    #star-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* การ์ดกระจกอวกาศ */
+    .space-glass {
+      background: linear-gradient(160deg, rgba(13, 22, 46, 0.82), rgba(7, 12, 28, 0.88));
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      box-shadow: 0 12px 35px -10px rgba(0, 0, 0, 0.65);
+    }
+
+    .mission-card {
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .mission-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(450px circle at var(--mx, 50%) var(--my, 0%), rgba(56, 189, 248, 0.12), transparent 55%);
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      pointer-events: none;
+    }
+    .mission-card:hover::before {
+      opacity: 1;
+    }
+    .mission-card:hover {
+      transform: translateY(-6px);
+    }
+
+    /* แอนิเมชั่นลำแสงวิ่งในแผนภาพ SVG */
+    .ray-flow {
+      stroke-dasharray: 8 6;
+      animation: rayMove 1.4s linear infinite;
+    }
+    .ray-flow-slow {
+      stroke-dasharray: 6 6;
+      animation: rayMove 1.9s linear infinite;
+    }
+    @keyframes rayMove {
+      from { stroke-dashoffset: 28; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* แหวนวงโคจรหมุนช้า ๆ หลังหัวข้อ */
+    @keyframes spinSlow {
+      from { transform: translate(-50%, -50%) rotate(0deg); }
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    @keyframes spinReverse {
+      from { transform: translate(-50%, -50%) rotate(360deg); }
+      to { transform: translate(-50%, -50%) rotate(0deg); }
+    }
+    .orbit-ring-1 {
+      animation: spinSlow 60s linear infinite;
+    }
+    .orbit-ring-2 {
+      animation: spinReverse 90s linear infinite;
+    }
+
+    /* แสงเรืองของปุ่ม */
+    .glow-sky:hover { box-shadow: 0 0 28px -4px rgba(56, 189, 248, 0.55); }
+    .glow-indigo:hover { box-shadow: 0 0 28px -4px rgba(129, 140, 248, 0.55); }
+    .glow-orange:hover { box-shadow: 0 0 28px -4px rgba(249, 115, 22, 0.55); }
+  </style>
+</head>
+<body class="min-h-screen bg-[#030612] text-slate-100 selection:bg-sky-500/30 selection:text-sky-100">
+  <!-- ชั้นพื้นหลังเนบิวลา + ดาวระยิบระยับและดาวตก -->
+  <div class="nebula-layer"></div>
+  <canvas id="star-bg"></canvas>
+
+  <div class="relative z-10 flex flex-col min-h-screen">
+    <!-- แถบนำทางอวกาศด้านบน -->
+    <header class="sticky top-0 z-30 bg-[#050a1a]/80 backdrop-blur-xl border-b border-sky-500/20">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <a href="#" class="flex items-center gap-3 min-w-0 group">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-400 via-indigo-500 to-orange-500 p-[1.5px] shrink-0 shadow-lg shadow-sky-500/20">
+            <div class="w-full h-full rounded-[14px] bg-[#060c1f] flex items-center justify-center text-xl group-hover:scale-110 transition">
+              🔭
+            </div>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h1 class="text-sm sm:text-base md:text-lg font-extrabold text-white leading-tight truncate">ห้องปฏิบัติการกล้องโทรทรรศน์ 3 มิติ</h1>
+              <span class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/35 text-[10px] font-hud text-emerald-300">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ONLINE
+              </span>
+            </div>
+            <p class="text-[11px] sm:text-xs text-sky-300/85 truncate">Interactive 3D Astronomy Lab • พัฒนาโดย นายทรงเกียรติ สวนแก้ว</p>
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
+          <a href="#models" class="px-3.5 py-2 rounded-xl hover:bg-sky-500/15 text-slate-200 hover:text-sky-200 transition">🚀 สำรวจกล้อง 3D</a>
+          <a href="#compare" class="px-3.5 py-2 rounded-xl hover:bg-indigo-500/15 text-slate-200 hover:text-indigo-200 transition">📊 เปรียบเทียบ</a>
+          <a href="#chooser" class="px-3.5 py-2 rounded-xl hover:bg-orange-500/15 text-slate-200 hover:text-orange-200 transition">🧭 ช่วยเลือกกล้อง</a>
+          <a href="#quiz" class="px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-400/35 text-sky-200 transition">🏆 แบบทดสอบรวม</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- ส่วนหัวเรื่อง (Cinematic Space Hero) -->
+    <section class="relative max-w-7xl mx-auto w-full px-4 sm:px-6 pt-10 sm:pt-16 pb-8 text-center overflow-hidden">
+      <!-- แหวนวงโคจรตกแต่งพื้นหลัง -->
+      <div class="pointer-events-none select-none absolute top-1/2 left-1/2 w-[540px] h-[540px] sm:w-[720px] sm:h-[720px] opacity-25">
+        <svg viewBox="0 0 600 600" class="w-full h-full orbit-ring-1 absolute top-1/2 left-1/2">
+          <circle cx="300" cy="300" r="240" fill="none" stroke="#38bdf8" stroke-width="1" stroke-dasharray="6 10" />
+          <circle cx="300" cy="60" r="4" fill="#38bdf8" />
+          <circle cx="540" cy="300" r="3" fill="#fb923c" />
+        </svg>
+        <svg viewBox="0 0 600 600" class="w-full h-full orbit-ring-2 absolute top-1/2 left-1/2">
+          <circle cx="300" cy="300" r="180" fill="none" stroke="#818cf8" stroke-width="1" stroke-dasharray="2 8" />
+          <circle cx="120" cy="300" r="3.5" fill="#c084fc" />
+        </svg>
+      </div>
+
+      <div class="relative z-10">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/35 text-xs sm:text-sm text-sky-200 font-semibold mb-5 shadow-lg shadow-sky-950/50">
+          <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
+          <span>ฐานปฏิบัติการดาราศาสตร์เสมือนจริง • หมุน ซูม แยกชิ้นส่วน ดูเส้นทางแสง</span>
+        </div>
+
+        <h2 class="text-3xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.15]">
+          เจาะลึกความลับของจักรวาลผ่าน<br class="hidden sm:inline" />
+          <span class="bg-gradient-to-r from-sky-300 via-indigo-300 to-orange-300 bg-clip-text text-transparent">
+            กล้องโทรทรรศน์ 3 มิติทั้ง 3 ตระกูล
+          </span>
+        </h2>
+
+        <p class="mt-4 sm:mt-5 text-sm sm:text-base md:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
+          สัมผัสประสบการณ์เรียนรู้โครงสร้างและหลักฟิสิกส์ของกล้องสะท้อนแสง กล้องหักเหแสง และกล้องแบบผสม
+          แบบจับต้องได้จริงบนคอมพิวเตอร์และมือถือ พร้อมแอนิเมชั่นการติดตั้งและเกมท้าประลองความรู้
+        </p>
+
+        <!-- ปุ่มทางลัด + สถิติภารกิจ -->
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <a href="#models" class="px-6 py-3 rounded-2xl bg-gradient-to-r from-sky-500 via-indigo-500 to-sky-500 hover:brightness-110 text-white font-bold text-sm sm:text-base shadow-xl shadow-sky-500/25 transition">
+            🚀 เริ่มสำรวจโมเดล 3 มิติ
+          </a>
+          <a href="#quiz" class="px-6 py-3 rounded-2xl space-glass hover:border-sky-400/60 text-sky-100 font-bold text-sm sm:text-base transition">
+            🧠 ทดสอบความรู้รวม
+          </a>
+        </div>
+
+        <!-- แถบสถิติ HUD -->
+        <div class="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl mx-auto">
+          <div class="space-glass rounded-2xl py-3 px-3 border-sky-500/20">
+            <div class="font-hud text-xl sm:text-2xl font-extrabold text-sky-300">03</div>
+            <div class="text-xs text-slate-400 mt-0.5">ตระกูลกล้อง 3D สมจริง</div>
+          </div>
+          <div class="space-glass rounded-2xl py-3 px-3 border-indigo-500/20">
+            <div class="font-hud text-xl sm:text-2xl font-extrabold text-indigo-300">45</div>
+            <div class="text-xs text-slate-400 mt-0.5">ชิ้นส่วนคลิกศึกษาได้</div>
+          </div>
+          <div class="space-glass rounded-2xl py-3 px-3 border-orange-500/20">
+            <div class="font-hud text-xl sm:text-2xl font-extrabold text-orange-300">24</div>
+            <div class="text-xs text-slate-400 mt-0.5">ขั้นตอนแอนิเมชั่นติดตั้ง</div>
+          </div>
+          <div class="space-glass rounded-2xl py-3 px-3 border-emerald-500/20">
+            <div class="font-hud text-xl sm:text-2xl font-extrabold text-emerald-300">35</div>
+            <div class="text-xs text-slate-400 mt-0.5">โจทย์เกม &amp; แบบทดสอบ</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ส่วนที่ 1: สถานีเลือกกล้อง 3 มิติทั้ง 3 ประเภท -->
+    <section id="models" class="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
+      <div class="flex items-end justify-between gap-4 mb-5">
+        <div>
+          <div class="font-hud text-[11px] tracking-widest uppercase text-sky-400">OBSERVATORY BAYS • 01 — 03</div>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-white mt-0.5">เลือกสถานีกล้องโทรทรรศน์ 3 มิติ</h2>
+        </div>
+        <span class="hidden sm:inline text-xs text-slate-400">คลิก "เปิดโมเดล 3D" เพื่อสำรวจในหน้าเดียว หรือ "↗ เต็มจอ" เพื่อเปิดแท็บใหม่</span>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- สถานี 01: กล้องสะท้อนแสง (Dobsonian) -->
+        <article class="space-glass mission-card glow-sky rounded-3xl p-5 flex flex-col justify-between border-sky-500/30 hover:border-sky-400/80">
+          <div class="space-y-4">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="font-hud text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-300 border border-sky-400/40">UNIT-01</span>
+                  <span class="text-xs font-bold text-sky-300">แบบสะท้อนแสง (Reflector)</span>
+                </div>
+                <h3 class="text-lg sm:text-xl font-extrabold text-white">กล้องด็อบโซเนียน 8" f/6</h3>
+                <p class="text-xs text-slate-400">Dobsonian Newtonian • ฐานระบบขอบฟ้า Alt-Az</p>
+              </div>
+              <div class="w-11 h-11 rounded-2xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-2xl shrink-0">🪞</div>
+            </div>
+
+            <!-- แผนภาพทางเดินแสง SVG แบบมีลำแสงวิ่ง -->
+            <div class="rounded-2xl bg-[#040918] border border-sky-500/25 p-3 relative overflow-hidden">
+              <div class="flex items-center justify-between text-[10px] font-hud text-sky-300/80 mb-1">
+                <span>OPTICAL PATH</span>
+                <span>D=203mm • F=1200mm</span>
+              </div>
+              <svg viewBox="0 0 320 105" class="w-full h-24">
+                <rect x="44" y="18" width="232" height="64" rx="7" fill="#0b132b" stroke="#38bdf8" stroke-opacity="0.45" stroke-width="1.8" />
+                <path d="M 264 24 Q 250 50 264 76" fill="none" stroke="#38bdf8" stroke-width="4.5" stroke-linecap="round" />
+                <line x1="88" y1="40" x2="104" y2="60" stroke="#e0f2fe" stroke-width="3.5" stroke-linecap="round" />
+                <rect x="86" y="3" width="20" height="15" rx="3" fill="#1e293b" stroke="#94a3b8" stroke-width="1.4" />
+                <line x1="10" y1="32" x2="258" y2="32" stroke="#fde047" stroke-width="1.9" class="ray-flow" />
+                <line x1="10" y1="68" x2="258" y2="68" stroke="#fde047" stroke-width="1.9" class="ray-flow" />
+                <line x1="258" y1="32" x2="96" y2="50" stroke="#38bdf8" stroke-width="1.9" class="ray-flow-slow" />
+                <line x1="258" y1="68" x2="96" y2="50" stroke="#38bdf8" stroke-width="1.9" class="ray-flow-slow" />
+                <line x1="96" y1="50" x2="96" y2="7" stroke="#7dd3fc" stroke-width="2.2" />
+                <circle cx="96" cy="11" r="3.8" fill="#fef08a" />
+                <text x="12" y="98" fill="#94a3b8" font-size="10">แสงดาว → กระจกเว้าพาราโบลา → กระจก 45° → เลนส์ใกล้ตา</text>
+              </svg>
+            </div>
+
+            <div class="grid grid-cols-3 gap-1.5 text-center">
+              <div class="rounded-xl bg-slate-900/80 border border-slate-800 py-1.5 px-1">
+                <div class="font-hud text-xs font-bold text-sky-300">841×</div>
+                <div class="text-[10px] text-slate-400">รวมแสงเทียบตา</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 border border-slate-800 py-1.5 px-1">
+                <div class="font-hud text-xs font-bold text-emerald-300">0%</div>
+                <div class="text-[10px] text-slate-400">ความคลาดสี</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 border border-slate-800 py-1.5 px-1">
+                <div class="font-hud text-xs font-bold text-amber-300">15 ชิ้น</div>
+                <div class="text-[10px] text-slate-400">คลิกได้ทุกชิ้น</div>
+              </div>
+            </div>
+
+            <ul class="text-xs sm:text-sm text-slate-300 space-y-1.5">
+              <li>• <b class="text-sky-200">ไฮไลต์:</b> หน้ากล้อง 8 นิ้วใหญ่สะใจ เหมาะดูเนบิวลาและกาแล็กซี</li>
+              <li>• <b class="text-sky-200">ฟิสิกส์:</b> กฎการสะท้อน, แฉกดาวขาแมงมุม, เทฟลอน, ระนาบ 3 จุด</li>
+            </ul>
+          </div>
+
+          <div class="mt-5 pt-3 border-t border-slate-800/80 flex gap-2">
+            <button type="button" data-launch="./dobsonian_telescope_3d.html" data-title="กล้องโทรทรรศน์ด็อบโซเนียน 8&quot; f/6" class="launch-btn flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 hover:brightness-110 text-slate-950 font-extrabold text-sm shadow-lg shadow-sky-500/20 transition text-center">
+              🚀 เปิดโมเดล 3D
+            </button>
+            <a href="./dobsonian_telescope_3d.html" target="_blank" rel="noopener" title="เปิดแท็บใหม่เต็มจอ" class="py-2.5 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-200 text-sm font-bold border border-sky-500/30 transition">
+              ↗ เต็มจอ
+            </a>
+          </div>
+        </article>
+
+        <!-- สถานี 02: กล้องหักเหแสง (Refractor EQ) -->
+        <article class="space-glass mission-card glow-indigo rounded-3xl p-5 flex flex-col justify-between border-indigo-500/30 hover:border-indigo-400/80">
+          <div class="space-y-4">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="font-hud text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-400/40">UNIT-02</span>
+                  <span class="text-xs font-bold text-indigo-300">แบบหักเหแสง (Refractor)</span>
+                </div>
+                <h3 class="text-lg sm:text-xl font-extrabold text-white">กล้องหักเหแสง 102mm f/10</h3>
+                <p class="text-xs text-slate-400">ฐานศูนย์สูตร EQ • สลับชุดเลนส์ 4 แบบ R-G-B</p>
+              </div>
+              <div class="w-11 h-11 rounded-2xl bg-indigo-500/15 border border-indigo-400/30 flex items-center justify-center text-2xl shrink-0">🔍</div>
+            </div>
+
+            <!-- แผนภาพทางเดินแสง SVG แยกสี R-G-B แบบมีลำแสงวิ่ง -->
+            <div class="rounded-2xl bg-[#040918] border border-indigo-500/25 p-3 relative overflow-hidden">
+              <div class="flex items-center justify-between text-[10px] font-hud text-indigo-300/80 mb-1">
+                <span>RGB REFRACTION</span>
+                <span>D=102mm • F=1000mm</span>
+              </div>
+              <svg viewBox="0 0 320 105" class="w-full h-24">
+                <rect x="52" y="22" width="204" height="56" rx="7" fill="#0b132b" stroke="#818cf8" stroke-opacity="0.45" stroke-width="1.8" />
+                <ellipse cx="62" cy="50" rx="6" ry="24" fill="#38bdf8" fill-opacity="0.45" stroke="#38bdf8" stroke-width="1.5" />
+                <rect x="68" y="26" width="5" height="48" fill="#34d399" fill-opacity="0.45" stroke="#34d399" stroke-width="1.2" />
+                <rect x="256" y="38" width="24" height="24" rx="3" fill="#1e293b" stroke="#94a3b8" stroke-width="1.4" />
+                <line x1="260" y1="58" x2="276" y2="42" stroke="#e2e8f0" stroke-width="2.5" />
+                <rect x="260" y="18" width="16" height="20" rx="3" fill="#334155" stroke="#94a3b8" stroke-width="1.4" />
+                <line x1="10" y1="34" x2="62" y2="34" stroke="#fef08a" stroke-width="1.9" class="ray-flow" />
+                <line x1="10" y1="66" x2="62" y2="66" stroke="#fef08a" stroke-width="1.9" class="ray-flow" />
+                <line x1="72" y1="34" x2="232" y2="50" stroke="#ff4d4d" stroke-width="1.7" class="ray-flow-slow" />
+                <line x1="72" y1="66" x2="232" y2="50" stroke="#ff4d4d" stroke-width="1.7" class="ray-flow-slow" />
+                <line x1="72" y1="34" x2="218" y2="50" stroke="#38bdf8" stroke-width="1.7" class="ray-flow-slow" />
+                <line x1="72" y1="66" x2="218" y2="50" stroke="#38bdf8" stroke-width="1.7" class="ray-flow-slow" />
+                <line x1="232" y1="50" x2="268" y2="50" stroke="#4ade80" stroke-width="1.9" />
+                <line x1="268" y1="50" x2="268" y2="14" stroke="#4ade80" stroke-width="2.2" />
+                <circle cx="225" cy="50" r="3.2" fill="#fde047" />
+                <text x="12" y="98" fill="#94a3b8" font-size="10">กาลิเลโอ / เคปเลอร์ / Doublet / APO • โหมดตามดาว RA</text>
+              </svg>
+            </div>
+
+            <div class="grid grid-cols-3 gap-1.5 text-center">
+              <div class="rounded-xl bg-slate-900/80 border border-slate-800 py-1.5 px-1">
+                <div class="font-hud text-xs font-bold text-indigo-300">4 แบบ</div>
+                <div class="text-[10px] text-slate-400">สลับชุดเลนส์</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 border border-slate-800 py-1.5 px-1">
+                <div class="font-hud text-xs font-bold text-sky-300">15°/ชม.</div>
+                <div class="text-[10px] text-slate-400">ตามดาวแกน RA</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 border border-slate-800 py-1.5 px-1">
+                <div class="font-hud text-xs font-bold text-amber-300">15 ชิ้น</div>
+                <div class="text-[10px] text-slate-400">ฐานศูนย์สูตร EQ</div>
+              </div>
+            </div>
+
+            <ul class="text-xs sm:text-sm text-slate-300 space-y-1.5">
+              <li>• <b class="text-indigo-200">ไฮไลต์:</b> ทดลองเปรียบเทียบความคลาดสี R-G-B และหมุนตามดาวอัตโนมัติ</li>
+              <li>• <b class="text-indigo-200">ฟิสิกส์:</b> กฎของสเนลล์, ความคลาดสี, Polar Alignment, แกน RA/Dec</li>
+            </ul>
+          </div>
+
+          <div class="mt-5 pt-3 border-t border-slate-800/80 flex gap-2">
+            <button type="button" data-launch="./refractor_telescope_3d.html" data-title="กล้องโทรทรรศน์แบบหักเหแสง 102mm f/10 EQ" class="launch-btn flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:brightness-110 text-white font-extrabold text-sm shadow-lg shadow-indigo-500/20 transition text-center">
+              🚀 เปิดโมเดล 3D
+            </button>
+            <a href="./refractor_telescope_3d.html" target="_blank" rel="noopener" title="เปิดแท็บใหม่เต็มจอ" class="py-2.5 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-indigo-200 text-sm font-bold border border-indigo-500/30 transition">
+              ↗ เต็มจอ
+            </a>
+          </div>
+        </article>
+
+        <!-- สถานี 03: กล้องแบบผสม (Catadioptric SCT/MAK GoTo) -->
+        <article class="space-glass mission-card glow-orange rounded-3xl p-5 flex flex-col justify-between border-orange-500/30 hover:border-orange-400/80">
+          <div class="space-y-4">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="font-hud text-[10px] font-bold px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-300 border border-orange-400/40">UNIT-03</span>
+                  <span class="text-xs font-bold text-orange-300">แบบผสม (Catadioptric)</span>
+                </div>
+                <h3 class="text-lg sm:text-xl font-extrabold text-white">กล้อง SCT / MAK 8" f/10</h3>
+                <p class="text-xs text-slate-400">NexStar 8SE • ฐานคอมพิวเตอร์ GoTo แขนเดี่ยว</p>
+              </div>
+              <div class="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-400/30 flex items-center justify-center text-2xl shrink-0">📡</div>
+            </div>
+
+            <!-- แผนภาพทางเดินแสง SVG พับ 3 ทบ แบบมีลำแสงวิ่ง -->
+            <div class="rounded-2xl bg-[#040918] border border-orange-500/25 p-3 relative overflow-hidden">
+              <div class="flex items-center justify-between text-[10px] font-hud text-orange-300/80 mb-1">
+                <span>3-PASS FOLDED OPTICS</span>
+                <span>D=203mm • F=2032mm</span>
+              </div>
+              <svg viewBox="0 0 320 105" class="w-full h-24">
+                <rect x="82" y="16" width="146" height="68" rx="7" fill="#0b132b" stroke="#f97316" stroke-opacity="0.7" stroke-width="2" />
+                <line x1="90" y1="20" x2="90" y2="80" stroke="#7dd3fc" stroke-width="3" />
+                <path d="M 94 37 Q 102 50 94 63" fill="none" stroke="#f8fafc" stroke-width="3.5" />
+                <path d="M 220 21 Q 210 34 216 44" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" />
+                <path d="M 216 56 Q 210 66 220 79" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" />
+                <rect x="234" y="39" width="22" height="22" rx="3" fill="#1e293b" stroke="#94a3b8" stroke-width="1.4" />
+                <rect x="238" y="19" width="14" height="20" rx="3" fill="#334155" stroke="#94a3b8" stroke-width="1.4" />
+                <line x1="20" y1="30" x2="215" y2="30" stroke="#fde047" stroke-width="1.8" class="ray-flow" />
+                <line x1="20" y1="70" x2="215" y2="70" stroke="#fde047" stroke-width="1.8" class="ray-flow" />
+                <line x1="215" y1="30" x2="98" y2="43" stroke="#f97316" stroke-width="1.7" class="ray-flow-slow" />
+                <line x1="215" y1="70" x2="98" y2="57" stroke="#f97316" stroke-width="1.7" class="ray-flow-slow" />
+                <line x1="98" y1="43" x2="245" y2="50" stroke="#38bdf8" stroke-width="1.7" class="ray-flow-slow" />
+                <line x1="98" y1="57" x2="245" y2="50" stroke="#38bdf8" stroke-width="1.7" class="ray-flow-slow" />
+                <line x1="245" y1="50" x2="245" y2="15" stroke="#7dd3fc" stroke-width="2.2" />
+                <text x="12" y="98" fill="#94a3b8" font-size="10">พับแสง 3 ทบ (โฟกัส 2 เมตร ในท่อ 43 ซม.) • นำร่อง GoTo</text>
+              </svg>
+            </div>
+
+            <div class="grid grid-cols-3 gap-1.5 text-center">
+              <div class="rounded-xl bg-slate-900/80 border border-slate-800 py-1.5 px-1">
+                <div class="font-hud text-xs font-bold text-orange-300">43 ซม.</div>
+                <div class="text-[10px] text-slate-400">ท่อสั้นพกง่าย</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 border border-slate-800 py-1.5 px-1">
+                <div class="font-hud text-xs font-bold text-rose-300">GoTo</div>
+                <div class="text-[10px] text-slate-400">นำร่องอัตโนมัติ</div>
+              </div>
+              <div class="rounded-xl bg-slate-900/80 border border-slate-800 py-1.5 px-1">
+                <div class="font-hud text-xs font-bold text-amber-300">SCT/MAK</div>
+                <div class="text-[10px] text-slate-400">สลับ 2 ระบบ</div>
+              </div>
+            </div>
+
+            <ul class="text-xs sm:text-sm text-slate-300 space-y-1.5">
+              <li>• <b class="text-orange-200">ไฮไลต์:</b> สลับโหมด SCT/MAK + มอเตอร์ GoTo เล็งดวงจันทร์/ดาวเสาร์/M42/M31</li>
+              <li>• <b class="text-orange-200">ฟิสิกส์:</b> พับแสง 3 ทบ, แก้ความคลาดทรงกลม, เลื่อนกระจกโฟกัส</li>
+            </ul>
+          </div>
+
+          <div class="mt-5 pt-3 border-t border-slate-800/80 flex gap-2">
+            <button type="button" data-launch="./catadioptric_telescope_3d.html" data-title="กล้องโทรทรรศน์แบบผสม 8&quot; f/10 (SCT / MAK GoTo)" class="launch-btn flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 hover:brightness-110 text-slate-950 font-extrabold text-sm shadow-lg shadow-orange-500/20 transition text-center">
+              🚀 เปิดโมเดล 3D
+            </button>
+            <a href="./catadioptric_telescope_3d.html" target="_blank" rel="noopener" title="เปิดแท็บใหม่เต็มจอ" class="py-2.5 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-orange-200 text-sm font-bold border border-orange-500/30 transition">
+              ↗ เต็มจอ
+            </a>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ส่วนที่ 2: ตารางเปรียบเทียบกล้องทั้ง 3 ประเภท -->
+    <section id="compare" class="max-w-7xl mx-auto w-full px-4 sm:px-6 py-8">
+      <div class="space-glass rounded-3xl p-5 sm:p-7 border-slate-700/60">
+        <div class="mb-5">
+          <div class="font-hud text-[11px] tracking-widest uppercase text-indigo-300">OPTICAL SPECIFICATION MATRIX</div>
+          <h2 class="text-lg sm:text-2xl font-extrabold text-white mt-0.5">📊 ตารางเปรียบเทียบกล้องโทรทรรศน์ทั้ง 3 ตระกูล</h2>
+          <p class="text-xs sm:text-sm text-slate-400 mt-1">เปรียบเทียบหลักฟิสิกส์ โครงสร้างทางกล จุดเด่น และข้อควรพิจารณาของแต่ละระบบ</p>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse min-w-[680px]">
+            <thead>
+              <tr class="border-b border-slate-700/80 text-xs sm:text-sm bg-slate-900/60">
+                <th class="py-3.5 px-4 text-slate-400 font-bold rounded-tl-xl w-44">หัวข้อเปรียบเทียบ</th>
+                <th class="py-3.5 px-4 text-sky-300 font-extrabold">🪞 สะท้อนแสง (ด็อบโซเนียน)</th>
+                <th class="py-3.5 px-4 text-indigo-300 font-extrabold">🔍 หักเหแสง (Refractor EQ)</th>
+                <th class="py-3.5 px-4 text-orange-300 font-extrabold rounded-tr-xl">📡 แบบผสม (SCT / MAK)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/80 text-xs sm:text-sm text-slate-200">
+              <tr class="hover:bg-sky-500/5 transition">
+                <td class="py-3.5 px-4 font-bold text-slate-300">หลักการรวมแสง</td>
+                <td class="py-3.5 px-4">การสะท้อน (กระจกเว้าพาราโบลา)</td>
+                <td class="py-3.5 px-4">การหักเห (ชุดเลนส์ใกล้วัตถุ)</td>
+                <td class="py-3.5 px-4">หักเห + สะท้อน (พับแสง 3 ทบ)</td>
+              </tr>
+              <tr class="hover:bg-sky-500/5 transition">
+                <td class="py-3.5 px-4 font-bold text-slate-300">สเปกในห้องแล็บ 3D</td>
+                <td class="py-3.5 px-4 font-hud text-xs text-sky-200">D=203mm • F=1200mm (f/6)</td>
+                <td class="py-3.5 px-4 font-hud text-xs text-indigo-200">D=102mm • F=1000mm (f/10)</td>
+                <td class="py-3.5 px-4 font-hud text-xs text-orange-200">D=203mm • F=2032mm (f/10)</td>
+              </tr>
+              <tr class="hover:bg-sky-500/5 transition">
+                <td class="py-3.5 px-4 font-bold text-slate-300">ความคลาดสี</td>
+                <td class="py-3.5 px-4 text-emerald-300 font-bold">ไม่มี (สะท้อนทุกสีมุมเท่ากัน)</td>
+                <td class="py-3.5 px-4 text-amber-300">มีในเลนส์เดี่ยว / แก้ด้วย Doublet, APO</td>
+                <td class="py-3.5 px-4 text-emerald-300 font-bold">ต่ำมากจนแทบมองไม่เห็น</td>
+              </tr>
+              <tr class="hover:bg-sky-500/5 transition">
+                <td class="py-3.5 px-4 font-bold text-slate-300">ลักษณะท่อ &amp; การดูแล</td>
+                <td class="py-3.5 px-4">ท่อเปิดยาว ~1.2 ม. ต้องปรับแนวกระจก</td>
+                <td class="py-3.5 px-4">ท่อปิดยาว ~1.0 ม. แทบไม่ต้องปรับแนว</td>
+                <td class="py-3.5 px-4">ท่อปิดสั้นมาก ~43 ซม. พกพาสะดวก</td>
+              </tr>
+              <tr class="hover:bg-sky-500/5 transition">
+                <td class="py-3.5 px-4 font-bold text-slate-300">ฐานตั้งกล้อง</td>
+                <td class="py-3.5 px-4">กล่องไม้ Alt-Az (หมุนมือ 2 แกน)</td>
+                <td class="py-3.5 px-4">ฐานศูนย์สูตร EQ (ตามดาวแกน RA)</td>
+                <td class="py-3.5 px-4">แขนส้อม GoTo (มอเตอร์นำร่องอัตโนมัติ)</td>
+              </tr>
+              <tr class="hover:bg-sky-500/5 transition">
+                <td class="py-3.5 px-4 font-bold text-slate-300">จุดเด่นในการใช้งาน</td>
+                <td class="py-3.5 px-4">เนบิวลา กาแล็กซี วัตถุจาง ๆ คุ้มงบที่สุด</td>
+                <td class="py-3.5 px-4">ดาวเคราะห์ ดวงจันทร์ ดาวคู่ ภาพคมชัดสูง</td>
+                <td class="py-3.5 px-4">อเนกประสงค์ ดาวเคราะห์ ถ่ายภาพ &amp; สอนในห้องเรียน</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ส่วนที่ 3: เครื่องมือช่วยเลือกกล้อง + แบบทดสอบรวม -->
+    <section class="max-w-7xl mx-auto w-full px-4 sm:px-6 pb-14 grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- เครื่องมือช่วยเลือกกล้องตามภารกิจ -->
+      <div id="chooser" class="space-glass rounded-3xl p-5 sm:p-6 space-y-4 border-slate-700/60">
+        <div>
+          <div class="font-hud text-[11px] tracking-widest uppercase text-orange-300">MISSION ADVISOR</div>
+          <h2 class="text-lg sm:text-xl font-extrabold text-white mt-0.5">🧭 ช่วยเลือกกล้องให้ตรงภารกิจสังเกตการณ์</h2>
+          <p class="text-xs sm:text-sm text-slate-400 mt-0.5">แตะเลือกเป้าหมายที่คุณสนใจ เพื่อดูคำแนะนำทางดาราศาสตร์</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button type="button" data-goal="dso" class="goal-btn text-left p-3.5 rounded-2xl bg-slate-900/80 hover:bg-sky-500/15 border border-slate-700/80 hover:border-sky-400/70 transition">
+            <div class="text-sm font-bold text-sky-200">🌌 ส่องเนบิวลาและกาแล็กซีจาง ๆ</div>
+            <div class="text-xs text-slate-400 mt-1">เน้นหน้ากล้องใหญ่ รับแสงได้มากที่สุด</div>
+          </button>
+          <button type="button" data-goal="planet" class="goal-btn text-left p-3.5 rounded-2xl bg-slate-900/80 hover:bg-indigo-500/15 border border-slate-700/80 hover:border-indigo-400/70 transition">
+            <div class="text-sm font-bold text-indigo-200">🪐 ดูดาวเคราะห์และฝึกตามดาว EQ</div>
+            <div class="text-xs text-slate-400 mt-1">ภาพคมกริบ ไม่มีแฉกขาแมงมุมบดบัง</div>
+          </button>
+          <button type="button" data-goal="portable" class="goal-btn text-left p-3.5 rounded-2xl bg-slate-900/80 hover:bg-orange-500/15 border border-slate-700/80 hover:border-orange-400/70 transition">
+            <div class="text-sm font-bold text-orange-200">🚗 พกพาสะดวก + ค้นหาดาว GoTo</div>
+            <div class="text-xs text-slate-400 mt-1">ท่อสั้น โฟกัสยาว นำร่องด้วยคอมพิวเตอร์</div>
+          </button>
+          <button type="button" data-goal="physics" class="goal-btn text-left p-3.5 rounded-2xl bg-slate-900/80 hover:bg-emerald-500/15 border border-slate-700/80 hover:border-emerald-400/70 transition">
+            <div class="text-sm font-bold text-emerald-200">🌈 ทดลองเปรียบเทียบความคลาดสี</div>
+            <div class="text-xs text-slate-400 mt-1">เทียบกาลิเลโอ เคปเลอร์ Doublet APO</div>
+          </button>
+        </div>
+
+        <div id="chooser-result" class="rounded-2xl bg-[#040918] border border-sky-400/35 p-4 space-y-2">
+          <div class="text-xs font-bold uppercase tracking-wide text-sky-300" id="rec-badge">คำแนะนำจากระบบ</div>
+          <h3 class="text-base sm:text-lg font-extrabold text-white" id="rec-title">เลือกภารกิจด้านบนเพื่อวิเคราะห์กล้องที่เหมาะสม</h3>
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed" id="rec-desc">ระบบจะวิเคราะห์ความสัมพันธ์ระหว่างขนาดหน้ากล้อง ความยาวโฟกัส ความคลาดสี และรูปแบบฐานตั้งกล้องให้ตรงกับโจทย์ของคุณ</p>
+          <div id="rec-action-wrap" class="hidden pt-2">
+            <button id="btn-rec-launch" type="button" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs sm:text-sm transition">
+              🚀 เปิดโมเดลที่แนะนำทันที
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- แบบทดสอบรวมเปรียบเทียบทั้ง 3 ประเภท (5 ข้อ) -->
+      <div id="quiz" class="space-glass rounded-3xl p-5 sm:p-6 flex flex-col justify-between space-y-4 border-slate-700/60">
+        <div class="space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="font-hud text-[11px] tracking-widest uppercase text-emerald-300">FINAL CHALLENGE</div>
+              <h2 class="text-lg sm:text-xl font-extrabold text-white mt-0.5">🏆 แบบทดสอบรวม 3 ตระกูล (5 ข้อ)</h2>
+            </div>
+            <span id="hub-quiz-score" class="font-hud text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-400/40 shrink-0">0 / 5</span>
+          </div>
+
+          <!-- แถบความคืบหน้าแบบทดสอบ -->
+          <div class="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+            <div id="hq-progress" class="h-full bg-gradient-to-r from-sky-400 via-indigo-400 to-emerald-400 transition-all duration-300" style="width: 20%"></div>
+          </div>
+
+          <div id="hub-quiz-box" class="rounded-2xl bg-[#040918] border border-slate-800 p-4 space-y-3">
+            <div class="text-xs text-sky-300 font-bold" id="hq-num">ข้อที่ 1 / 5</div>
+            <p class="text-sm sm:text-base font-bold text-white leading-relaxed" id="hq-question"></p>
+            <div id="hq-options" class="space-y-2"></div>
+            <p id="hq-feedback" class="hidden text-xs sm:text-sm rounded-xl p-3 leading-relaxed"></p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between gap-2">
+          <button id="btn-hq-restart" type="button" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs sm:text-sm font-semibold text-slate-200 transition">↺ เริ่มใหม่</button>
+          <button id="btn-hq-next" type="button" class="hidden px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 hover:brightness-110 text-white text-xs sm:text-sm font-extrabold transition shadow-lg">ข้อถัดไป ▶</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ส่วนท้ายเว็บ -->
+    <footer class="mt-auto border-t border-slate-800/80 bg-[#030612]/80 py-6 px-4 text-center text-xs text-slate-400">
+      <p class="font-semibold text-slate-300">🔭 ห้องปฏิบัติการกล้องโทรทรรศน์ 3 มิติ • สื่อการสอนดาราศาสตร์ระดับมัธยมศึกษาตอนปลาย</p>
+      <p class="mt-1.5 text-sky-300 font-semibold">พัฒนาโดย: นายทรงเกียรติ สวนแก้ว</p>
+      <p class="mt-1">ครบทั้ง 3 ตระกูลหลัก (สะท้อนแสง • หักเหแสง • แบบผสม) พัฒนาด้วย Three.js &amp; Tailwind CSS • พร้อมใช้งานบน GitHub Pages</p>
+    </footer>
+  </div>
+
+  <!-- หน้าต่าง Modal แบบเต็มจอสำหรับเปิดและสลับโมเดล 3D ทั้ง 3 ตัวได้ทันที -->
+  <div id="viewer-modal" class="hidden fixed inset-0 z-50 bg-[#030612] flex flex-col">
+    <div class="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 bg-[#060b1c] border-b border-sky-500/25 shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <button id="btn-close-modal" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs sm:text-sm font-bold text-white transition shrink-0">
+          ◀ กลับหน้าหลัก
+        </button>
+        <span id="modal-title" class="text-xs sm:text-sm font-bold text-sky-300 truncate"></span>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0 overflow-x-auto">
+        <button type="button" data-switch="./dobsonian_telescope_3d.html" data-title="กล้องโทรทรรศน์ด็อบโซเนียน 8&quot; f/6" class="modal-switch-btn px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-sky-500/25 text-[11px] sm:text-xs font-bold text-sky-200 border border-slate-700 whitespace-nowrap">🪞 ด็อบโซเนียน</button>
+        <button type="button" data-switch="./refractor_telescope_3d.html" data-title="กล้องโทรทรรศน์แบบหักเหแสง 102mm f/10 EQ" class="modal-switch-btn px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-indigo-500/25 text-[11px] sm:text-xs font-bold text-indigo-200 border border-slate-700 whitespace-nowrap">🔍 หักเหแสง EQ</button>
+        <button type="button" data-switch="./catadioptric_telescope_3d.html" data-title="กล้องโทรทรรศน์แบบผสม 8&quot; f/10 (SCT / MAK GoTo)" class="modal-switch-btn px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-orange-500/25 text-[11px] sm:text-xs font-bold text-orange-200 border border-slate-700 whitespace-nowrap">📡 แบบผสม GoTo</button>
+      </div>
+    </div>
+    <div class="relative flex-1 w-full min-h-0 bg-[#030612]">
+      <iframe id="viewer-iframe" src="about:blank" class="w-full h-full border-0" allowfullscreen></iframe>
+      <!-- หน้าแจ้งเตือนอัตโนมัติเมื่อเปิดทดสอบใน Gemini Preview (ที่แยกไฟล์ทีละหน้า) -->
+      <div id="preview-notice" class="hidden absolute inset-0 z-10 flex items-center justify-center p-4 bg-[#030612]/95">
+        <div class="space-glass rounded-3xl p-6 max-w-lg w-full text-center space-y-4 border-sky-400/40">
+          <div class="text-4xl">🛰️</div>
+          <h3 class="text-lg sm:text-xl font-extrabold text-white">ไม่สามารถเปิดข้ามไฟล์ในหน้า Preview ของ Gemini ได้</h3>
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+            ระบบแสดงตัวอย่างของ Gemini จะเปิดทีละ 1 ไฟล์แยกกัน จึงยังมองไม่เห็นไฟล์ <code id="notice-filename" class="px-1.5 py-0.5 rounded bg-slate-800 text-sky-300 font-mono"></code>
+          </p>
+          <div class="text-left rounded-2xl bg-slate-900/90 border border-slate-700/80 p-3.5 text-xs text-slate-200 space-y-1.5">
+            <div class="font-bold text-amber-300">✅ วิธีทำให้ปุ่มใช้งานได้ครบ 100%:</div>
+            <div>นำไฟล์ทั้ง <b>4 ไฟล์</b> มาไว้ในโฟลเดอร์เดียวกัน หรืออัปโหลดขึ้น <b>GitHub Pages</b> พร้อมกัน:</div>
+            <ul class="list-disc list-inside text-sky-200 font-mono text-[11px] space-y-0.5 pt-1">
+              <li>index.html</li>
+              <li>dobsonian_telescope_3d.html</li>
+              <li>refractor_telescope_3d.html</li>
+              <li>catadioptric_telescope_3d.html</li>
+            </ul>
+          </div>
+          <div class="flex flex-wrap justify-center gap-2 pt-1">
+            <button id="btn-notice-back" type="button" class="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs sm:text-sm transition">
+              ◀ กลับหน้าหลัก
+            </button>
+            <button id="btn-notice-force" type="button" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs sm:text-sm border border-slate-600 transition">
+              ลองโหลดไฟล์ดูอีกครั้ง
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. พื้นหลังอวกาศ: ดาวระยิบระยับหลากสี + พารัลแลกซ์ + ดาวตก (Shooting Stars)
+    // =========================================================================
+    (function initSpaceCanvas() {
+      var canvas = document.getElementById('star-bg');
+      var ctx = canvas.getContext('2d');
+      var stars = [];
+      var meteors = [];
+      var mouseX = 0;
+      var mouseY = 0;
+      var targetMX = 0;
+      var targetMY = 0;
+
+      var starColors = ['#ffffff', '#bae6fd', '#c7d2fe', '#fef08a', '#fed7aa'];
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        stars = [];
+        var count = Math.min(280, Math.floor((canvas.width * canvas.height) / 4200));
+        for (var i = 0; i < count; i++) {
+          stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            r: Math.random() * 1.6 + 0.35,
+            depth: Math.random() * 0.8 + 0.2,
+            phase: Math.random() * Math.PI * 2,
+            speed: Math.random() * 0.02 + 0.005,
+            color: starColors[Math.floor(Math.random() * starColors.length)]
+          });
+        }
+      }
+
+      function spawnMeteor() {
+        meteors.push({
+          x: Math.random() * canvas.width * 0.85 + canvas.width * 0.1,
+          y: Math.random() * canvas.height * 0.35,
+          vx: -(6 + Math.random() * 5),
+          vy: 3.5 + Math.random() * 3,
+          len: 75 + Math.random() * 65,
+          life: 1.0
+        });
+      }
+
+      window.addEventListener('mousemove', function (e) {
+        targetMX = (e.clientX / window.innerWidth - 0.5) * 18;
+        targetMY = (e.clientY / window.innerHeight - 0.5) * 14;
+      });
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        mouseX += (targetMX - mouseX) * 0.05;
+        mouseY += (targetMY - mouseY) * 0.05;
+
+        // วาดดาวระยิบระยับ
+        for (var i = 0; i < stars.length; i++) {
+          var s = stars[i];
+          s.phase += s.speed;
+          var alpha = 0.28 + Math.abs(Math.sin(s.phase)) * 0.72;
+          var px = s.x - mouseX * s.depth;
+          var py = s.y - mouseY * s.depth;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = s.color;
+          ctx.beginPath();
+          ctx.arc(px, py, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // สุ่มเกิดดาวตกเป็นระยะ
+        if (Math.random() < 0.006 && meteors.length < 2) {
+          spawnMeteor();
+        }
+
+        // วาดและอัปเดตดาวตก
+        for (var m = meteors.length - 1; m >= 0; m--) {
+          var mt = meteors[m];
+          mt.x += mt.vx;
+          mt.y += mt.vy;
+          mt.life -= 0.018;
+
+          if (mt.life <= 0) {
+            meteors.splice(m, 1);
+            continue;
+          }
+
+          var tailX = mt.x - mt.vx * (mt.len / 9);
+          var tailY = mt.y - mt.vy * (mt.len / 9);
+          var grad = ctx.createLinearGradient(mt.x, mt.y, tailX, tailY);
+          grad.addColorStop(0, 'rgba(224, 242, 254, ' + mt.life.toFixed(2) + ')');
+          grad.addColorStop(0.35, 'rgba(56, 189, 248, ' + (mt.life * 0.55).toFixed(2) + ')');
+          grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 2;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(mt.x, mt.y);
+          ctx.lineTo(tailX, tailY);
+          ctx.stroke();
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+      draw();
+    })();
+
+    // เอฟเฟกต์แสงติดตามเมาส์บนการ์ดทั้ง 3 ใบ
+    document.querySelectorAll('.mission-card').forEach(function (card) {
+      card.addEventListener('mousemove', function (e) {
+        var rect = card.getBoundingClientRect();
+        card.style.setProperty('--mx', (e.clientX - rect.left) + 'px');
+        card.style.setProperty('--my', (e.clientY - rect.top) + 'px');
+      });
+    });
+
+    // =========================================================================
+    // 2. ระบบเปิด Modal แสดงโมเดล 3D และปุ่มสลับกล้องด้านบน
+    // =========================================================================
+    var viewerModal = document.getElementById('viewer-modal');
+    var viewerIframe = document.getElementById('viewer-iframe');
+    var modalTitle = document.getElementById('modal-title');
+    var previewNotice = document.getElementById('preview-notice');
+    var noticeFilename = document.getElementById('notice-filename');
+    var pendingUrl = '';
+
+    // ตรวจสอบว่ารันอยู่ในสภาพแวดล้อม Preview แบบไฟล์เดี่ยว (srcdoc / blob / data) หรือไม่
+    function isIsolatedPreviewEnv() {
+      var proto = window.location.protocol;
+      var host = window.location.hostname || '';
+      return proto === 'about:' || proto === 'blob:' || proto === 'data:' || host.indexOf('googleusercontent.com') !== -1;
+    }
+
+    function openTelescopeModal(url, title, forceLoad) {
+      pendingUrl = url;
+      modalTitle.textContent = title;
+      viewerModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+
+      document.querySelectorAll('.modal-switch-btn').forEach(function (btn) {
+        var active = btn.dataset.switch === url;
+        btn.classList.toggle('ring-2', active);
+        btn.classList.toggle('ring-sky-400', active);
+        btn.classList.toggle('bg-slate-800', active);
+      });
+
+      if (!forceLoad && isIsolatedPreviewEnv()) {
+        viewerIframe.src = 'about:blank';
+        noticeFilename.textContent = url.replace('./', '');
+        previewNotice.classList.remove('hidden');
+      } else {
+        previewNotice.classList.add('hidden');
+        viewerIframe.src = url;
+      }
+    }
+
+    function closeTelescopeModal() {
+      viewerModal.classList.add('hidden');
+      previewNotice.classList.add('hidden');
+      viewerIframe.src = 'about:blank';
+      document.body.style.overflow = '';
+    }
+
+    document.getElementById('btn-notice-back').addEventListener('click', closeTelescopeModal);
+    document.getElementById('btn-notice-force').addEventListener('click', function () {
+      if (pendingUrl) openTelescopeModal(pendingUrl, modalTitle.textContent, true);
+    });
+
+    document.querySelectorAll('.launch-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openTelescopeModal(btn.dataset.launch, btn.dataset.title);
+      });
+    });
+
+    document.querySelectorAll('.modal-switch-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openTelescopeModal(btn.dataset.switch, btn.dataset.title);
+      });
+    });
+
+    document.getElementById('btn-close-modal').addEventListener('click', closeTelescopeModal);
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !viewerModal.classList.contains('hidden')) closeTelescopeModal();
+    });
+
+    // =========================================================================
+    // 3. เครื่องมือช่วยเลือกกล้องให้ตรงภารกิจ
+    // =========================================================================
+    var RECOMMENDATIONS = {
+      dso: {
+        badge: 'แนะนำ: UNIT-01 กล้องสะท้อนแสง (ด็อบโซเนียน 8" f/6)',
+        title: '🪞 กล้องด็อบโซเนียน (Dobsonian Reflector)',
+        desc: 'ได้หน้ากล้องใหญ่ 8 นิ้ว (203 มม.) ในงบประมาณคุ้มค่าที่สุด รวมแสงได้มากกว่าตามนุษย์ถึง 841 เท่า มองเห็นเนบิวลา กระจุกดาว และกาแล็กซีจาง ๆ ได้ชัดเจนและตั้งใช้งานได้ภายในไม่กี่นาที',
+        url: './dobsonian_telescope_3d.html',
+        modalTitle: 'กล้องโทรทรรศน์ด็อบโซเนียน 8" f/6'
+      },
+      planet: {
+        badge: 'แนะนำ: UNIT-02 กล้องหักเหแสง (Refractor 102mm f/10 EQ)',
+        title: '🔍 กล้องหักเหแสงบนฐานศูนย์สูตร (EQ)',
+        desc: 'ไม่มีกระจกทุติยภูมิและขาแมงมุมบดบังกลางลำแสง ความเปรียบต่างของแถบเมฆดาวพฤหัสและวงแหวนดาวเสาร์คมชัดสูง และฐาน EQ ช่วยหมุนตามดาวต่อเนื่องได้ด้วยแกน RA เพียงแกนเดียว',
+        url: './refractor_telescope_3d.html',
+        modalTitle: 'กล้องโทรทรรศน์แบบหักเหแสง 102mm f/10 EQ'
+      },
+      portable: {
+        badge: 'แนะนำ: UNIT-03 กล้องแบบผสม (Catadioptric SCT / MAK GoTo)',
+        title: '📡 กล้องแบบผสม 8" f/10 บนฐาน GoTo',
+        desc: 'การพับทางเดินแสง 3 ทบช่วยย่อความยาวโฟกัส 2,032 มม. ให้เหลือท่อยาวเพียง ~43 ซม. พกพาขึ้นรถสบาย พร้อมคอมพิวเตอร์ GoTo นำร่องและติดตามวัตถุท้องฟ้ากว่า 40,000 วัตถุอัตโนมัติ',
+        url: './catadioptric_telescope_3d.html',
+        modalTitle: 'กล้องโทรทรรศน์แบบผสม 8" f/10 (SCT / MAK GoTo)'
+      },
+      physics: {
+        badge: 'แนะนำ: UNIT-02 ห้องทดลองความคลาดสี 4 ระบบเลนส์',
+        title: '🌈 ทดลองเปรียบเทียบความคลาดสี (R-G-B)',
+        desc: 'เปิดโมเดลกล้องหักเหแสงแล้วกดปุ่ม "เส้นทางแสง" คู่กับแถบสลับเลนส์ กาลิเลโอ / เคปเลอร์ / อะโครมาติก / APO จะเห็นการแยกจุดโฟกัสของแสงสีแดง-เขียว-น้ำเงินอย่างชัดเจน',
+        url: './refractor_telescope_3d.html',
+        modalTitle: 'กล้องโทรทรรศน์แบบหักเหแสง 102mm f/10 EQ'
+      }
+    };
+
+    var currentRec = null;
+    document.querySelectorAll('.goal-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var r = RECOMMENDATIONS[btn.dataset.goal];
+        if (!r) return;
+        currentRec = r;
+
+        document.querySelectorAll('.goal-btn').forEach(function (b) {
+          b.classList.toggle('ring-2', b === btn);
+          b.classList.toggle('ring-sky-400', b === btn);
+        });
+
+        document.getElementById('rec-badge').textContent = r.badge;
+        document.getElementById('rec-title').textContent = r.title;
+        document.getElementById('rec-desc').textContent = r.desc;
+        document.getElementById('rec-action-wrap').classList.remove('hidden');
+      });
+    });
+
+    document.getElementById('btn-rec-launch').addEventListener('click', function () {
+      if (currentRec) openTelescopeModal(currentRec.url, currentRec.modalTitle);
+    });
+
+    // =========================================================================
+    // 4. แบบทดสอบรวมเปรียบเทียบทั้ง 3 ประเภท (5 ข้อ)
+    // =========================================================================
+    var HUB_QUIZ = [
+      {
+        q: 'กล้องโทรทรรศน์ประเภทใดที่ "ไม่เกิดความคลาดสี" จากชิ้นรับแสงหลัก เพราะใช้หลักการสะท้อนแทนการหักเห?',
+        options: ['กล้องแบบหักเหแสงเลนส์เดี่ยว (Keplerian)', 'กล้องแบบสะท้อนแสง (Dobsonian / Newtonian)', 'กล้องกาลิเลโอ (Galilean)'],
+        correct: 1,
+        explain: 'กระจกเงาสะท้อนแสงทุกความยาวคลื่นด้วยมุมเท่ากัน (θᵢ = θᵣ) จึงไม่เกิดความคลาดสีเหมือนเลนส์แก้ว'
+      },
+      {
+        q: 'เหตุใดกล้องแบบผสม SCT ขนาด 8 นิ้ว f/10 จึงมีท่อยาวเพียง ~43 ซม. ทั้งที่มีความยาวโฟกัสยาวถึง 2,032 มม.?',
+        options: ['เพราะใช้เลนส์ใกล้ตาขนาดใหญ่ขึ้น', 'เพราะพับทางเดินแสงไป-กลับ 3 ทบ และใช้กระจกทุติยภูมิผิวโค้งนูนขยายโฟกัส', 'เพราะตัดแสงสีน้ำเงินออก'],
+        correct: 1,
+        explain: 'ระบบ Catadioptric พับแสง 3 ทบภายในท่อและใช้กระจกทุติยภูมินูนช่วยขยายทางยาวโฟกัสขึ้นราว 5 เท่า'
+      },
+      {
+        q: 'แฉกแสง 4 แฉกรอบดาวฤกษ์สว่างที่ปรากฏในกล้องด็อบโซเนียนเกิดจากปรากฏการณ์ฟิสิกส์ใด?',
+        options: ['การเลี้ยวเบนของแสง (Diffraction) ที่ขอบขาแมงมุม 4 แฉก', 'ความคลาดสีของกระจกปฐมภูมิ', 'การสะท้อนซ้ำบนแผ่นเทฟลอน'],
+        correct: 0,
+        explain: 'คลื่นแสงที่ผ่านขอบแผ่นโลหะขาแมงมุม 4 แฉกจะเลี้ยวเบนและแทรกสอดเป็นแฉกดาวตั้งฉากกับแนวขาแมงมุม'
+      },
+      {
+        q: 'หากตั้งฐานระบบศูนย์สูตร (EQ) ให้แกน RA ชี้ตรงขั้วฟ้าเหนือแล้ว ในเวลา 1 ชั่วโมงต้องหมุนแกน RA ตามดาวประมาณกี่องศา?',
+        options: ['ประมาณ 1 องศา', 'ประมาณ 15 องศา', 'ประมาณ 45 องศา'],
+        correct: 1,
+        explain: 'โลกหมุนครบ 360° ใน ~24 ชั่วโมง ดังนั้นทรงกลมท้องฟ้าจึงเคลื่อนที่ด้วยอัตรา 360° / 24 = 15° ต่อชั่วโมง'
+      },
+      {
+        q: 'ข้อใดคือหลักความปลอดภัยที่สำคัญที่สุดก่อนใช้กล้องโทรทรรศน์ทุกประเภทส่องสังเกตดวงอาทิตย์?',
+        options: ['ใส่แว่นกันแดดแล้วส่องผ่านเลนส์ใกล้ตาได้เลย', 'สวมแผ่นกรองแสงอาทิตย์มาตรฐานที่หน้าปากท่อกล้องให้แน่น และปิดหรือถอดกล้องเล็งทุกครั้ง', 'ขันแผ่นกรองแสงสีเข้มไว้ที่ท้ายเลนส์ใกล้ตา'],
+        correct: 1,
+        explain: 'ต้องกรองพลังงานรังสีดวงอาทิตย์ตั้งแต่หน้าปากท่อก่อนแสงถูกรวมให้เข้มข้น เพื่อป้องกันความร้อนและอันตรายต่อดวงตาถาวร'
+      }
+    ];
+
+    var hqIdx = 0;
+    var hqScore = 0;
+    var hqAnswered = false;
+
+    function renderHubQuiz() {
+      var item = HUB_QUIZ[hqIdx];
+      hqAnswered = false;
+      document.getElementById('hq-num').textContent = 'ข้อที่ ' + (hqIdx + 1) + ' / ' + HUB_QUIZ.length;
+      document.getElementById('hq-question').textContent = item.q;
+      document.getElementById('hub-quiz-score').textContent = hqScore + ' / ' + HUB_QUIZ.length;
+      document.getElementById('hq-progress').style.width = (((hqIdx + 1) / HUB_QUIZ.length) * 100) + '%';
+
+      var fb = document.getElementById('hq-feedback');
+      fb.classList.add('hidden');
+      document.getElementById('btn-hq-next').classList.add('hidden');
+
+      var optWrap = document.getElementById('hq-options');
+      optWrap.innerHTML = '';
+      item.options.forEach(function (text, idx) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-xs sm:text-sm text-slate-200 transition';
+        btn.textContent = (idx + 1) + '. ' + text;
+        btn.addEventListener('click', function () {
+          if (hqAnswered) return;
+          hqAnswered = true;
+          var isRight = idx === item.correct;
+          if (isRight) hqScore++;
+          document.getElementById('hub-quiz-score').textContent = hqScore + ' / ' + HUB_QUIZ.length;
+
+          Array.from(optWrap.children).forEach(function (child, ci) {
+            if (ci === item.correct) {
+              child.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-emerald-500/25 border border-emerald-400 text-xs sm:text-sm text-emerald-100 font-bold';
+            } else if (ci === idx && !isRight) {
+              child.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-rose-500/25 border border-rose-400 text-xs sm:text-sm text-rose-100';
+            }
+          });
+
+          fb.className = isRight
+            ? 'text-xs sm:text-sm rounded-xl p-3 leading-relaxed bg-emerald-950/60 border border-emerald-500/40 text-emerald-200'
+            : 'text-xs sm:text-sm rounded-xl p-3 leading-relaxed bg-rose-950/60 border border-rose-500/40 text-rose-200';
+          fb.textContent = (isRight ? '✅ ถูกต้อง! ' : '❌ ยังไม่ถูก — ') + item.explain;
+          fb.classList.remove('hidden');
+
+          var nextBtn = document.getElementById('btn-hq-next');
+          nextBtn.textContent = hqIdx < HUB_QUIZ.length - 1 ? 'ข้อถัดไป ▶' : 'ดูสรุปคะแนน 🏆';
+          nextBtn.classList.remove('hidden');
+        });
+        optWrap.appendChild(btn);
+      });
+    }
+
+    document.getElementById('btn-hq-next').addEventListener('click', function () {
+      if (hqIdx < HUB_QUIZ.length - 1) {
+        hqIdx++;
+        renderHubQuiz();
+      } else {
+        document.getElementById('hq-num').textContent = 'ภารกิจเสร็จสมบูรณ์';
+        document.getElementById('hq-question').textContent = 'คุณทำได้ ' + hqScore + ' / ' + HUB_QUIZ.length + ' คะแนน!';
+        document.getElementById('hq-options').innerHTML = '';
+        var fb = document.getElementById('hq-feedback');
+        fb.className = 'text-xs sm:text-sm rounded-xl p-3.5 leading-relaxed bg-sky-950/60 border border-sky-400/40 text-sky-100';
+        fb.textContent = hqScore >= 4
+          ? '🏆 ยอดเยี่ยมระดับนักดาราศาสตร์! คุณเข้าใจความแตกต่างและหลักฟิสิกส์ของกล้องโทรทรรศน์ทั้ง 3 ประเภทครบถ้วนแล้ว'
+          : '🔭 ทำได้ดีมาก! ลองเปิดสำรวจโมเดล 3D และเส้นทางแสงของทั้ง 3 กล้องแล้วกลับมาท้าประลองใหม่อีกครั้งนะ';
+        fb.classList.remove('hidden');
+        document.getElementById('btn-hq-next').classList.add('hidden');
+      }
+    });
+
+    document.getElementById('btn-hq-restart').addEventListener('click', function () {
+      hqIdx = 0;
+      hqScore = 0;
+      renderHubQuiz();
+    });
+
+    renderHubQuiz();
+  </script>
+</body>
+</html>

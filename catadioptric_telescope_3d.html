@@ -1,0 +1,2789 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>กล้องโทรทรรศน์แบบผสม 3D (Catadioptric: SCT / MAK)</title>
+  <!-- ฟอนต์ภาษาไทย Sarabun -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #040814;
+      color: #e2e8f0;
+      font-family: 'Sarabun', system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    .glass-panel {
+      background: rgba(9, 16, 34, 0.86);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.24);
+    }
+    .thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .thin-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); border-radius: 999px; }
+    .thin-scroll::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.4); border-radius: 999px; }
+    .thin-scroll::-webkit-scrollbar-thumb:hover { background: rgba(249, 115, 22, 0.7); }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.3);
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #f97316;
+      border: 2px solid #ffedd5;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(249, 115, 22, 0.65);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #f97316;
+      border: 2px solid #ffedd5;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="bg-[#040814] text-slate-100">
+  <!-- โครงสร้างหลักแบบ Responsive: คอมพิวเตอร์แบ่งซ้าย-ขวา, มือถือแผงข้อมูลเปิดด้านล่าง -->
+  <div id="app-root" class="relative w-full h-full flex flex-col lg:flex-row overflow-hidden">
+
+    <!-- พื้นที่แสดงผล 3D -->
+    <div id="canvas-wrap" class="relative flex-1 w-full h-full min-h-0 overflow-hidden">
+      <div id="three-container" class="w-full h-full"></div>
+
+      <!-- หน้าจอโหลด / แจ้งเตือนข้อผิดพลาด WebGL -->
+      <div id="loader-overlay" class="absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#040814] px-6 text-center transition-opacity duration-500">
+        <div id="loader-spinner" class="w-12 h-12 rounded-full border-4 border-orange-400/25 border-t-orange-400 animate-spin mb-3"></div>
+        <p id="loader-text" class="text-sm sm:text-base text-orange-200 font-medium max-w-md">กำลังโหลดโมเดลกล้องโทรทรรศน์แบบผสม 3 มิติ (SCT / MAK)...</p>
+        <p id="loader-sub" class="text-xs text-slate-400 mt-1.5 max-w-md hidden"></p>
+      </div>
+
+      <!-- แถบด้านบน: ชื่อเว็บ + ปุ่มเต็มจอ + ปุ่มเปิด/ซ่อนแผงข้อมูล -->
+      <div class="absolute top-2.5 left-2.5 right-2.5 z-20 flex items-start justify-between gap-2 pointer-events-none">
+        <div class="glass-panel pointer-events-auto rounded-2xl px-3 py-2 flex items-center gap-2.5 shadow-lg max-w-[60%] sm:max-w-md">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shrink-0 shadow-md">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 3v3" />
+              <path d="M12 18v3" />
+              <path d="M3 12h3" />
+              <path d="M18 12h3" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h1 class="text-xs sm:text-sm md:text-base font-bold text-white leading-tight truncate">กล้องโทรทรรศน์แบบผสม 3D</h1>
+            <p class="text-[11px] sm:text-xs text-orange-300/95 truncate">Catadioptric 8" f/10 • SCT / MAK • GoTo</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 pointer-events-auto shrink-0">
+          <button id="btn-fullscreen" type="button" title="เต็มจอ" class="glass-panel hover:bg-orange-500/20 active:scale-95 transition rounded-xl px-2.5 py-2 text-xs sm:text-sm font-medium text-sky-100 flex items-center gap-1.5 shadow-lg">
+            <span>⛶</span>
+            <span class="hidden sm:inline">เต็มจอ</span>
+          </button>
+          <button id="btn-toggle-panel" type="button" class="glass-panel hover:bg-orange-500/20 active:scale-95 transition rounded-xl px-2.5 py-2 text-xs sm:text-sm font-medium text-sky-100 flex items-center gap-1.5 shadow-lg border-orange-400/40">
+            <span>📖</span>
+            <span id="toggle-panel-label">แผงข้อมูล</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- กล่องสรุปโหมด SCT/MAK + แบนเนอร์ GoTo / โจทย์เกม -->
+      <div id="floating-banner" class="absolute top-16 left-2.5 right-2.5 z-20 flex flex-col items-center gap-1.5 pointer-events-none">
+        <div id="optics-mode-pill" class="glass-panel pointer-events-auto rounded-2xl px-3.5 py-1.5 text-[11px] sm:text-xs text-center shadow-lg max-w-lg border-orange-400/35">
+          <span id="optics-summary-title" class="font-bold text-orange-300">ชมิดต์-แคสสิเกรน (SCT)</span>
+          <span class="text-slate-400 mx-1">•</span>
+          <span id="optics-summary-desc" class="text-slate-200">แผ่นปรับแก้ชมิดต์บาง + กระจกทุติยภูมินูนแยกชิ้นปรับแนวได้ • โฟกัส 2,032 มม. ในท่อยาว 43 ซม.</span>
+        </div>
+        <div id="status-banner-inner" class="hidden glass-panel pointer-events-auto rounded-2xl px-4 py-1.5 text-xs sm:text-sm font-medium text-center shadow-xl max-w-md border-amber-400/50 text-amber-100"></div>
+      </div>
+
+      <!-- เมนูลอยเลือกเป้าหมาย GoTo (เปิด/ปิดด้วยปุ่ม 🎯 นำร่อง GoTo) -->
+      <div id="goto-popover" class="hidden absolute bottom-[158px] sm:bottom-[138px] left-1/2 -translate-x-1/2 z-30 glass-panel rounded-2xl p-2.5 shadow-2xl border-rose-400/45 w-[92%] max-w-[440px]">
+        <div class="flex items-center justify-between mb-2 px-1">
+          <span class="text-xs font-bold text-rose-300">🎯 เลือกวัตถุท้องฟ้าให้มอเตอร์ GoTo นำร่องอัตโนมัติ</span>
+          <button id="btn-close-goto" type="button" class="text-xs text-slate-400 hover:text-white px-1.5">✕</button>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button type="button" data-goto="moon" class="goto-target-btn rounded-xl bg-slate-900/90 hover:bg-rose-500/25 border border-slate-700 hover:border-rose-400/60 px-2.5 py-2 text-left transition">
+            <div class="text-xs font-bold text-amber-200">🌕 ดวงจันทร์ (Moon)</div>
+            <div class="text-[10px] text-slate-400">Az 118° • Alt 42°</div>
+          </button>
+          <button type="button" data-goto="saturn" class="goto-target-btn rounded-xl bg-slate-900/90 hover:bg-rose-500/25 border border-slate-700 hover:border-rose-400/60 px-2.5 py-2 text-left transition">
+            <div class="text-xs font-bold text-yellow-200">🪐 ดาวเสาร์ (Saturn)</div>
+            <div class="text-[10px] text-slate-400">Az 212° • Alt 56°</div>
+          </button>
+          <button type="button" data-goto="m42" class="goto-target-btn rounded-xl bg-slate-900/90 hover:bg-rose-500/25 border border-slate-700 hover:border-rose-400/60 px-2.5 py-2 text-left transition">
+            <div class="text-xs font-bold text-sky-200">✨ เนบิวลานายพราน (M42)</div>
+            <div class="text-[10px] text-slate-400">Az 165° • Alt 68°</div>
+          </button>
+          <button type="button" data-goto="m31" class="goto-target-btn rounded-xl bg-slate-900/90 hover:bg-rose-500/25 border border-slate-700 hover:border-rose-400/60 px-2.5 py-2 text-left transition">
+            <div class="text-xs font-bold text-indigo-200">🌌 แอนโดรเมดา (M31)</div>
+            <div class="text-[10px] text-slate-400">Az 320° • Alt 34°</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- ป้ายชื่อชิ้นส่วนเมื่อชี้เมาส์ -->
+      <div id="hover-tooltip" class="hidden fixed z-30 pointer-events-none px-2.5 py-1 rounded-lg bg-slate-900/95 border border-orange-400/50 text-xs font-medium text-orange-100 shadow-lg"></div>
+
+      <!-- แถบควบคุมด้านล่าง -->
+      <div id="bottom-controls" class="absolute bottom-2 left-2 right-2 z-20 flex justify-center pointer-events-none">
+        <div class="w-full max-w-[680px] flex flex-col gap-1.5 pointer-events-auto">
+
+          <!-- แถบสลับโหมด SCT vs MAK + แถบเลื่อน Alt / Az -->
+          <div class="glass-panel rounded-2xl px-2.5 py-2 shadow-xl space-y-1.5">
+            <div class="grid grid-cols-2 gap-1.5">
+              <button type="button" data-optics="sct" class="optics-btn rounded-xl py-1.5 px-2 text-[11px] sm:text-xs font-bold transition bg-orange-500/30 text-orange-100 border border-orange-400/60 truncate">
+                SCT: ชมิดต์-แคสสิเกรน
+              </button>
+              <button type="button" data-optics="mak" class="optics-btn rounded-xl py-1.5 px-2 text-[11px] sm:text-xs font-semibold transition text-slate-300 hover:bg-slate-800/80 border border-transparent truncate">
+                MAK: มัคซูตอฟ-แคสสิเกรน
+              </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+              <div class="flex items-center gap-2 min-w-0">
+                <label for="slider-alt" class="text-[11px] font-medium text-slate-200 whitespace-nowrap w-20">มุมเงย (Alt)</label>
+                <input id="slider-alt" type="range" min="0" max="90" value="38" class="flex-1 min-w-0" />
+                <span id="val-alt" class="text-[11px] font-bold text-orange-300 w-9 text-right tabular-nums">38°</span>
+              </div>
+              <div class="flex items-center gap-2 min-w-0">
+                <label for="slider-az" class="text-[11px] font-medium text-slate-200 whitespace-nowrap w-20">มุมทิศ (Az)</label>
+                <input id="slider-az" type="range" min="0" max="360" value="35" class="flex-1 min-w-0" />
+                <span id="val-az" class="text-[11px] font-bold text-sky-300 w-9 text-right tabular-nums">35°</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ปุ่มคำสั่งโต้ตอบ -->
+          <div class="flex flex-wrap items-center justify-center gap-1">
+            <button id="btn-goto" type="button" class="glass-panel hover:bg-rose-500/25 active:scale-95 transition rounded-xl px-2 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-100 flex items-center gap-1 shadow-md border-rose-400/35">
+              <span>🎯</span><span>นำร่อง GoTo</span>
+            </button>
+            <button id="btn-explode" type="button" class="glass-panel hover:bg-sky-500/20 active:scale-95 transition rounded-xl px-2 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-100 flex items-center gap-1 shadow-md">
+              <span>🧩</span><span>แยกชิ้นส่วน</span>
+            </button>
+            <button id="btn-light" type="button" class="glass-panel hover:bg-amber-500/20 active:scale-95 transition rounded-xl px-2 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-100 flex items-center gap-1 shadow-md">
+              <span>✨</span><span>เส้นทางแสง</span>
+            </button>
+            <button id="btn-xray" type="button" class="glass-panel hover:bg-cyan-500/20 active:scale-95 transition rounded-xl px-2 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-100 flex items-center gap-1 shadow-md">
+              <span>🔍</span><span>ท่อโปร่งใส</span>
+            </button>
+            <button id="btn-solar" type="button" class="glass-panel hover:bg-orange-500/20 active:scale-95 transition rounded-xl px-2 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-100 flex items-center gap-1 shadow-md">
+              <span>☀️</span><span>กรองแสงอาทิตย์</span>
+            </button>
+            <button id="btn-zoom-in" type="button" class="glass-panel hover:bg-sky-500/20 active:scale-95 transition rounded-xl px-2 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-100 flex items-center gap-1 shadow-md">
+              <span>➕</span><span class="hidden sm:inline">ซูมเข้า</span>
+            </button>
+            <button id="btn-zoom-out" type="button" class="glass-panel hover:bg-sky-500/20 active:scale-95 transition rounded-xl px-2 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-100 flex items-center gap-1 shadow-md">
+              <span>➖</span><span class="hidden sm:inline">ซูมออก</span>
+            </button>
+            <button id="btn-reset" type="button" class="glass-panel hover:bg-sky-500/20 active:scale-95 transition rounded-xl px-2 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-100 flex items-center gap-1 shadow-md">
+              <span>↺</span><span>รีเซ็ต</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- แผงข้อมูล 5 แท็บ (ด้านขวาบนคอมพิวเตอร์ / ลิ้นชักล่างบนมือถือ) -->
+    <aside id="info-panel" class="hidden lg:flex flex-col w-full lg:w-[395px] xl:w-[425px] h-[52vh] lg:h-full bg-[#091022]/95 border-t lg:border-t-0 lg:border-l border-slate-700/60 z-30 shrink-0 shadow-2xl">
+      <!-- แถบแท็บ 5 เมนู -->
+      <div class="p-2 border-b border-slate-700/60 bg-slate-900/60">
+        <div class="grid grid-cols-5 gap-1">
+          <button data-tab="parts" class="tab-btn rounded-xl py-2 px-1 text-[11px] sm:text-xs font-semibold transition bg-orange-500/25 text-orange-200 border border-orange-400/50">ชิ้นส่วน</button>
+          <button data-tab="setup" class="tab-btn rounded-xl py-2 px-1 text-[11px] sm:text-xs font-semibold transition text-slate-300 hover:bg-slate-800 border border-transparent">ติดตั้ง</button>
+          <button data-tab="quiz" class="tab-btn rounded-xl py-2 px-1 text-[11px] sm:text-xs font-semibold transition text-slate-300 hover:bg-slate-800 border border-transparent">เกม (10 ข้อ)</button>
+          <button data-tab="calc" class="tab-btn rounded-xl py-2 px-1 text-[11px] sm:text-xs font-semibold transition text-slate-300 hover:bg-slate-800 border border-transparent">คำนวณ</button>
+          <button data-tab="physics" class="tab-btn rounded-xl py-2 px-1 text-[11px] sm:text-xs font-semibold transition text-slate-300 hover:bg-slate-800 border border-transparent">ฟิสิกส์</button>
+        </div>
+      </div>
+
+      <!-- เนื้อหาของแต่ละแท็บ -->
+      <div class="flex-1 overflow-y-auto thin-scroll p-3.5 space-y-3">
+
+        <!-- แท็บ 1: ชิ้นส่วน 15 ชิ้น -->
+        <section id="tab-parts" class="tab-pane space-y-3">
+          <div>
+            <p class="text-xs text-slate-400 mb-2">แตะเลือกชิ้นส่วนบนโมเดล 3 มิติ หรือเลือกจากรายการด้านล่าง (ครบ 15 ชิ้นส่วน):</p>
+            <div id="part-pills" class="flex flex-wrap gap-1.5"></div>
+          </div>
+
+          <div class="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-3.5 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h2 id="part-name-th" class="text-base sm:text-lg font-bold text-orange-300">ท่อกล้องขนาดกะทัดรัด</h2>
+                <p id="part-name-en" class="text-xs text-slate-400">Compact Optical Tube</p>
+              </div>
+              <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-400/30 shrink-0">8" f/10</span>
+            </div>
+
+            <div class="space-y-1">
+              <h3 class="text-xs font-bold uppercase tracking-wide text-amber-300">หน้าที่การทำงาน</h3>
+              <p id="part-role" class="text-sm text-slate-200 leading-relaxed"></p>
+            </div>
+
+            <div class="space-y-1">
+              <h3 class="text-xs font-bold uppercase tracking-wide text-emerald-300">หลักฟิสิกส์ที่เกี่ยวข้อง</h3>
+              <p id="part-physics" class="text-sm text-slate-200 leading-relaxed"></p>
+            </div>
+
+            <div class="rounded-xl bg-indigo-950/60 border border-indigo-400/30 p-3 space-y-2">
+              <div class="text-xs font-bold text-indigo-300">💡 คำถามชวนคิด</div>
+              <p id="part-question" class="text-sm text-indigo-100 leading-relaxed"></p>
+              <button id="btn-show-answer" type="button" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500/30 hover:bg-indigo-500/45 text-indigo-100 border border-indigo-400/40 transition">ดูแนวคำตอบ</button>
+              <p id="part-answer" class="hidden text-sm text-emerald-200 bg-emerald-950/50 border border-emerald-500/30 rounded-lg p-2.5 leading-relaxed"></p>
+            </div>
+          </div>
+        </section>
+
+        <!-- แท็บ 2: แอนิเมชั่นการติดตั้งและใช้งาน 8 ขั้นตอน -->
+        <section id="tab-setup" class="tab-pane hidden space-y-3">
+          <div class="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-3.5 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-sm sm:text-base font-bold text-orange-300">ติดตั้งและนำร่อง GoTo (8 ขั้นตอน)</h2>
+              <span id="setup-step-badge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-200 border border-orange-400/30 shrink-0">ขั้นที่ 1 / 8</span>
+            </div>
+
+            <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div id="setup-progress-bar" class="h-full bg-gradient-to-r from-orange-400 to-emerald-400 transition-all duration-300" style="width: 12.5%"></div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-1.5">
+              <button id="btn-setup-prev" type="button" class="rounded-xl py-2 px-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 transition">◀ ก่อนหน้า</button>
+              <button id="btn-setup-play" type="button" class="rounded-xl py-2 px-2 text-xs font-bold bg-orange-500 hover:bg-orange-400 text-slate-950 transition">▶ เล่นอนิเมชั่น</button>
+              <button id="btn-setup-next" type="button" class="rounded-xl py-2 px-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 transition">ถัดไป ▶</button>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 bg-slate-950/60 rounded-xl px-3 py-2 border border-slate-800">
+              <span class="text-xs text-slate-300 font-medium">ความเร็ว:</span>
+              <div class="flex gap-1">
+                <button data-speed="0.5" class="speed-btn px-2 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700">0.5×</button>
+                <button data-speed="1" class="speed-btn px-2 py-1 rounded-lg text-xs font-semibold bg-orange-500/30 text-orange-200 border border-orange-400/50">1×</button>
+                <button data-speed="1.5" class="speed-btn px-2 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700">1.5×</button>
+                <button data-speed="2" class="speed-btn px-2 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700">2×</button>
+              </div>
+            </div>
+
+            <div class="rounded-xl bg-orange-950/35 border border-orange-400/30 p-3 space-y-1.5">
+              <h3 id="setup-step-title" class="text-sm font-bold text-white"></h3>
+              <p id="setup-step-desc" class="text-xs sm:text-sm text-slate-200 leading-relaxed"></p>
+              <p id="setup-step-tip" class="text-xs text-amber-300/95 pt-1 leading-relaxed"></p>
+            </div>
+          </div>
+
+          <div id="setup-step-list" class="space-y-1.5"></div>
+        </section>
+
+        <!-- แท็บ 3: เกมหาชิ้นส่วน (10 ข้อ) -->
+        <section id="tab-quiz" class="tab-pane hidden space-y-3">
+          <div class="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <h2 class="text-base font-bold text-orange-300">🎯 เกมหาชิ้นส่วน (10 ข้อ)</h2>
+              <span id="quiz-score-badge" class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">คะแนน: 0 / 10</span>
+            </div>
+
+            <div id="quiz-idle" class="space-y-3">
+              <p class="text-sm text-slate-300 leading-relaxed">
+                ระบบจะสุ่มชื่อชิ้นส่วน 10 ข้อจากทั้งหมด 15 ชิ้น ให้นักเรียนหมุนดูรอบตัวกล้องแบบผสมและฐานส้อม GoTo แล้วคลิกเลือกชิ้นส่วนที่ถูกต้อง (แนะนำเปิด "ท่อโปร่งใส" หรือ "แยกชิ้นส่วน" เมื่อต้องการคลิกกระจกปฐมภูมิหรือท่อบังแสงด้านใน)
+              </p>
+              <button id="btn-start-quiz" type="button" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-slate-950 font-bold text-sm shadow-lg transition">เริ่มเล่นเกม 10 ข้อ</button>
+            </div>
+
+            <div id="quiz-active" class="hidden space-y-3">
+              <div class="flex items-center justify-between text-xs text-slate-400">
+                <span id="quiz-q-num">ข้อที่ 1 / 10</span>
+                <button id="btn-quiz-hint" type="button" class="text-amber-300 hover:underline">💡 ขอคำใบ้</button>
+              </div>
+              <div class="rounded-xl bg-orange-950/50 border border-orange-400/40 p-3.5 text-center">
+                <p class="text-xs text-orange-200 mb-1">จงคลิกที่ชิ้นส่วนต่อไปนี้บนโมเดล 3D:</p>
+                <p id="quiz-target-name" class="text-lg font-bold text-white"></p>
+                <p id="quiz-target-en" class="text-xs text-orange-300"></p>
+              </div>
+              <p id="quiz-hint-text" class="hidden text-xs text-amber-200 bg-amber-950/40 border border-amber-400/30 rounded-lg p-2.5"></p>
+              <div id="quiz-feedback" class="hidden rounded-xl p-2.5 text-xs sm:text-sm font-medium text-center"></div>
+              <button id="btn-quit-quiz" type="button" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">ยกเลิกเกม</button>
+            </div>
+
+            <div id="quiz-summary" class="hidden space-y-3 text-center">
+              <div class="text-4xl" id="quiz-medal">🏆</div>
+              <h3 class="text-lg font-bold text-white">สรุปคะแนน</h3>
+              <p class="text-2xl font-extrabold text-orange-300" id="quiz-final-score"></p>
+              <p class="text-sm text-slate-300" id="quiz-final-msg"></p>
+              <button id="btn-restart-quiz" type="button" class="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-slate-950 font-bold text-sm transition">เล่นใหม่อีกครั้ง</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- แท็บ 4: เครื่องคำนวณทัศนศาสตร์ -->
+        <section id="tab-calc" class="tab-pane hidden space-y-3">
+          <div class="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-3.5 space-y-3">
+            <h2 class="text-base font-bold text-orange-300">🧮 เครื่องคำนวณทัศนศาสตร์ (8" f/10)</h2>
+
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">หน้ากล้อง D (mm)</label>
+                <input id="calc-D" type="number" value="203" min="50" max="1000" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-orange-400 outline-none" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">โฟกัสกล้อง F (mm)</label>
+                <input id="calc-F" type="number" value="2032" min="200" max="6000" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-orange-400 outline-none" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">โฟกัสเลนส์ใกล้ตา f<sub>e</sub> (mm)</label>
+                <input id="calc-fe" type="number" value="25" min="2" max="60" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-orange-400 outline-none" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">มุมมองปรากฏ AFOV (°)</label>
+                <input id="calc-afov" type="number" value="52" min="25" max="110" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-orange-400 outline-none" />
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-1.5 items-center">
+              <span class="text-[11px] text-slate-400">เลนส์ยอดนิยม:</span>
+              <button type="button" data-ep="40" class="ep-preset px-2 py-1 rounded-lg bg-slate-800 hover:bg-orange-500/25 text-xs text-orange-200 border border-slate-700">40 mm (51×)</button>
+              <button type="button" data-ep="25" class="ep-preset px-2 py-1 rounded-lg bg-slate-800 hover:bg-orange-500/25 text-xs text-orange-200 border border-slate-700">25 mm (81×)</button>
+              <button type="button" data-ep="10" class="ep-preset px-2 py-1 rounded-lg bg-slate-800 hover:bg-orange-500/25 text-xs text-orange-200 border border-slate-700">10 mm (203×)</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5">
+                <div class="text-[11px] text-slate-400">กำลังขยาย (M = F / f<sub>e</sub>)</div>
+                <div id="res-mag" class="text-lg font-bold text-orange-300">81.3×</div>
+              </div>
+              <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5">
+                <div class="text-[11px] text-slate-400">อัตราส่วนโฟกัส (F / D)</div>
+                <div id="res-fratio" class="text-lg font-bold text-amber-300">f/10.0</div>
+              </div>
+              <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5">
+                <div class="text-[11px] text-slate-400">รวมแสงเทียบตา (7 mm)</div>
+                <div id="res-lgp" class="text-lg font-bold text-emerald-300">841 เท่า</div>
+              </div>
+              <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5">
+                <div class="text-[11px] text-slate-400">กำลังแยกภาพ (Dawes)</div>
+                <div id="res-res" class="text-lg font-bold text-violet-300">0.57"</div>
+              </div>
+              <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5">
+                <div class="text-[11px] text-slate-400">Exit Pupil (D / M)</div>
+                <div id="res-exit" class="text-lg font-bold text-cyan-300">2.50 mm</div>
+              </div>
+              <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5">
+                <div class="text-[11px] text-slate-400">มุมมองจริง (AFOV / M)</div>
+                <div id="res-tfov" class="text-lg font-bold text-rose-300">0.64°</div>
+              </div>
+            </div>
+            <p id="calc-note" class="text-xs text-slate-300 bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 leading-relaxed"></p>
+          </div>
+        </section>
+
+        <!-- แท็บ 5: หลักฟิสิกส์ 8 หัวข้อ -->
+        <section id="tab-physics" class="tab-pane hidden space-y-2.5">
+          <h2 class="text-base font-bold text-orange-300 px-0.5">⚛️ หลักฟิสิกส์กล้องแบบผสม (8 หัวข้อ)</h2>
+          <div id="physics-list" class="space-y-2.5"></div>
+        </section>
+
+      </div>
+    </aside>
+  </div>
+
+  <!-- โหลด Three.js r128 แบบ Classic UMD Script พร้อม Fallback อัตโนมัติ (cdnjs -> jsdelivr -> unpkg) -->
+  <script>
+    (function loadThreeClassic() {
+      var urls = [
+        'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+        'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+        'https://unpkg.com/three@0.128.0/build/three.min.js'
+      ];
+      var idx = 0;
+
+      function showFatalError(title, detail) {
+        var spinner = document.getElementById('loader-spinner');
+        var text = document.getElementById('loader-text');
+        var sub = document.getElementById('loader-sub');
+        if (spinner) spinner.style.display = 'none';
+        if (text) {
+          text.textContent = title;
+          text.className = 'text-base font-bold text-rose-300 max-w-md';
+        }
+        if (sub) {
+          sub.textContent = detail;
+          sub.classList.remove('hidden');
+        }
+      }
+      window.__SHOW_FATAL_ERROR__ = showFatalError;
+
+      function startWhenReady() {
+        if (window.__CATADIOPTRIC_STARTED__) return;
+        if (typeof initCatadioptricApp === 'function' && (document.readyState === 'interactive' || document.readyState === 'complete')) {
+          window.__CATADIOPTRIC_STARTED__ = true;
+          initCatadioptricApp();
+        } else {
+          window.addEventListener('DOMContentLoaded', function () {
+            if (!window.__CATADIOPTRIC_STARTED__ && typeof initCatadioptricApp === 'function') {
+              window.__CATADIOPTRIC_STARTED__ = true;
+              initCatadioptricApp();
+            }
+          });
+        }
+      }
+
+      function tryLoadNext() {
+        if (typeof window.THREE !== 'undefined') {
+          startWhenReady();
+          return;
+        }
+        if (idx >= urls.length) {
+          showFatalError(
+            'ไม่สามารถโหลดไลบรารี Three.js ได้',
+            'กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรืออนุญาตการโหลดสคริปต์จาก CDN แล้วรีเฟรชหน้าเว็บอีกครั้ง'
+          );
+          return;
+        }
+        var script = document.createElement('script');
+        script.src = urls[idx++];
+        script.async = false;
+        script.onload = function () {
+          if (typeof window.THREE !== 'undefined') startWhenReady();
+          else tryLoadNext();
+        };
+        script.onerror = tryLoadNext;
+        document.head.appendChild(script);
+      }
+
+      tryLoadNext();
+    })();
+  </script>
+
+  <script>
+    function initCatadioptricApp() {
+      // =========================================================================
+      // 1. ข้อมูลโหมด SCT/MAK, เป้าหมาย GoTo, ชิ้นส่วน 15 ชิ้น, ขั้นตอนติดตั้ง 8 ขั้น, ฟิสิกส์ 8 หัวข้อ
+      // =========================================================================
+      var OPTICS_MODES = {
+        sct: {
+          title: 'ชมิดต์-แคสสิเกรน (SCT)',
+          desc: 'แผ่นปรับแก้ชมิดต์บาง + กระจกทุติยภูมินูนแยกชิ้นปรับแนวได้ • โฟกัส 2,032 มม. ในท่อยาว 43 ซม.'
+        },
+        mak: {
+          title: 'มัคซูตอฟ-แคสสิเกรน (MAK)',
+          desc: 'เลนส์เมนิสคัสโค้งหนา + จุดเคลือบอะลูมิเนียมสะท้อนแสงกลางผิวเลนส์ • คมชัดสูงแทบไม่ต้องปรับแนว'
+        }
+      };
+
+      var GOTO_TARGETS = {
+        moon:   { name: 'ดวงจันทร์ (Moon)', az: 118, alt: 42 },
+        saturn: { name: 'ดาวเสาร์ (Saturn)', az: 212, alt: 56 },
+        m42:    { name: 'เนบิวลานายพราน (M42)', az: 165, alt: 68 },
+        m31:    { name: 'กาแล็กซีแอนโดรเมดา (M31)', az: 320, alt: 34 }
+      };
+
+      var PARTS_DATA = [
+        {
+          id: 'ota',
+          nameTh: 'ท่อกล้องขนาดกะทัดรัด',
+          nameEn: 'Compact Optical Tube (NexStar 8SE)',
+          role: 'ท่ออะลูมิเนียมพ่นสีส้มเมทัลลิกเคลือบเงา ยาวเพียง ~43 ซม. แต่บรรจุความยาวโฟกัสได้ถึง 2,032 มม. ด้วยการพับทางเดินแสง 3 ทบ เป็นระบบท่อปิดช่วยป้องกันฝุ่นและกระแสลมวนภายใน',
+          physics: 'ระบบพับทางเดินแสง (Folded Optics) ทำให้ได้ความยาวโฟกัสยาวมากในท่อสั้น ลดโมเมนต์ความเฉื่อย (I = Σmr²) ช่วยให้มอเตอร์ GoTo หมุนนิ่งและพกพาสะดวก',
+          question: 'เหตุใดกล้อง SCT 8 นิ้ว f/10 จึงมีท่อยาวเพียง ~43 ซม. ทั้งที่มีความยาวโฟกัสยาวถึง 2,032 มม.?',
+          answer: 'เพราะแสงเดินทางไป-กลับภายในท่อถึง 3 ทบ (หน้า → กระจกปฐมภูมิ → กระจกทุติยภูมินูน → ลอดรูกลางออกท้ายกล้อง) และกระจกทุติยภูมิผิวโค้งนูนยังช่วยขยายทางยาวโฟกัสขึ้นราว 5 เท่า'
+        },
+        {
+          id: 'corrector',
+          nameTh: 'แผ่นปรับแก้ชมิดต์ / เลนส์เมนิสคัส',
+          nameEn: 'Schmidt Corrector Plate / Meniscus Lens',
+          role: 'ชิ้นแก้วใสที่ปิดปากท่อกล้อง ทำหน้าที่หักเหแสงขาเข้าเล็กน้อยเพื่อแก้ความคลาดทรงกลมของกระจกปฐมภูมิทรงกลม พร้อมช่วยยึดกระจกทุติยภูมิแทนขาแมงมุม (กดสลับโหมด SCT / MAK เพื่อดูความต่าง)',
+          physics: 'การหักเหของแสง (Snell\'s Law) เพื่อชดเชยความคลาดทรงกลม (Spherical Aberration) โดยไม่ต้องใช้ขาแมงมุม จึงไม่เกิดแฉกดาว 4 แฉกเหมือนกล้องนิวโตเนียน',
+          question: 'ทำไมภาพดาวสว่างจากกล้อง SCT จึงไม่มีแฉกแสง 4 แฉกเหมือนกล้องด็อบโซเนียน?',
+          answer: 'เพราะกระจกทุติยภูมิยึดติดตรงกลางแผ่นแก้วปรับแก้ด้านหน้าโดยตรง ไม่มีแผ่นโลหะขาแมงมุม 4 แฉกมาขวางทำให้เกิดการเลี้ยวเบนเป็นแฉก'
+        },
+        {
+          id: 'primary',
+          nameTh: 'กระจกปฐมภูมิทรงกลมมีรูกลาง',
+          nameEn: 'Spherical Primary Mirror (203mm f/2)',
+          role: 'กระจกเว้าทรงกลมขนาด 8 นิ้ว (203 มม.) ที่ท้ายท่อ มีรูเจาะตรงกลางให้ลำแสงที่สะท้อนกลับมาจากกระจกทุติยภูมิพุ่งผ่านออกไปท้ายกล้อง และสามารถเลื่อนเดินหน้า-ถอยหลังเพื่อปรับโฟกัสได้',
+          physics: 'กฎการสะท้อน θᵢ = θᵣ และความสามารถรวมแสง LGP ∝ D² (รวมแสงมากกว่าตามนุษย์ 841 เท่า) ผิวทรงกลมขัดได้แม่นยำและถูกแก้ความคลาดทรงกลมด้วยแผ่นปรับแก้ด้านหน้า',
+          question: 'การเจาะรูตรงกลางกระจกปฐมภูมิทำให้ภาพที่เห็นมีจุดดำตรงกลางหรือไม่?',
+          answer: 'ไม่มีจุดดำ! เพราะบริเวณตรงกลางนั้นอยู่ในเงาบดบังของกระจกทุติยภูมิอยู่แล้ว และรังสีแสงจากทุกส่วนของดาวตกกระทบทั่วพื้นที่กระจกที่เหลืออยู่'
+        },
+        {
+          id: 'secondary',
+          nameTh: 'กระจกทุติยภูมิผิวโค้งนูน',
+          nameEn: 'Convex Secondary Mirror (5× Amplifier)',
+          role: 'กระจกโค้งนูนขนาดเล็กตรงกลางแผ่นปรับแก้ด้านหน้า ทำหน้าที่สะท้อนลำแสงจากกระจกปฐมภูมิย้อนกลับลงไปลอดรูกลางท้ายท่อ พร้อมขยายความยาวโฟกัสจาก f/2 เป็น f/10 (ในโหมด MAK จะเคลือบอะลูมิเนียมติดผิวในเลนส์เมนิสคัส)',
+          physics: 'กระจกโค้งนูนทำหน้าที่เป็นตัวกระจายแสงแบบอ่อน ช่วยลดมุมลู่เข้าของกรวยแสง เสมือนเพิ่มความยาวโฟกัสประสิทธิผล (Effective Focal Length) ขึ้น ~5 เท่า',
+          question: 'ความต่างของกระจกทุติยภูมิระหว่างระบบ SCT กับ MAK คืออะไร?',
+          answer: 'SCT ใช้กระจกนูนแยกชิ้นบรรจุในเรือนสีดำที่มีสกรู 3 ตัวให้ปรับแนวได้ ส่วน MAK เคลือบอะลูมิเนียมเป็นจุดสะท้อนแสงลงบนผิวด้านในของเลนส์เมนิสคัสโดยตรง แทบไม่ต้องปรับแนวเลย'
+        },
+        {
+          id: 'baffle',
+          nameTh: 'ท่อบังแสงภายใน',
+          nameEn: 'Internal Central Baffle Tube',
+          role: 'ท่อโลหะสีดำด้านที่สวมผ่านรูกลางกระจกปฐมภูมิ มีร่องเกลียวกันแสงสะท้อน ทำหน้าที่ป้องกันไม่ให้แสงจากภายนอกพุ่งตรงผ่านรูกลางเข้าเลนส์ใกล้ตาโดยไม่ผ่านกระจกสะท้อน และเป็นรางให้กระจกปฐมภูมิเลื่อนปรับโฟกัส',
+          physics: 'การดูดกลืนแสงฟุ้งกระจาย (Stray Light Suppression) ช่วยเพิ่มความเปรียบต่าง (Contrast) ให้พื้นหลังท้องฟ้าดำสนิท',
+          question: 'หากไม่มีท่อบังแสงตรงกลาง จะเกิดอะไรขึ้นเมื่อส่องดูวัตถุท้องฟ้า?',
+          answer: 'แสงจากท้องฟ้าด้านหน้าจะพุ่งผ่านรูกลางกระจกเข้าสู่เลนส์ใกล้ตาโดยตรง ทำให้ภาพฟุ้งขาวและมองไม่เห็นวัตถุจาง ๆ'
+        },
+        {
+          id: 'focusKnob',
+          nameTh: 'ปุ่มปรับโฟกัสเลื่อนกระจก',
+          nameEn: 'Primary Mirror Focus Knob',
+          role: 'ลูกบิดหุ้มยางพร้อมแกนทองเหลืองที่ด้านหลังท้ายท่อกล้อง เมื่อหมุนจะขับแกนเกลียวเลื่อนกระจกปฐมภูมิทั้งแผ่นเดินหน้า-ถอยหลังอย่างละเอียดเพื่อหาจุดโฟกัสที่คมชัดที่สุด',
+          physics: 'การเปลี่ยนระยะห่างระหว่างกระจกปฐมภูมิกับกระจกทุติยภูมิเพียง 1 มม. จะเลื่อนตำแหน่งจุดโฟกัสหลังกล้องได้มากถึง ~25 มม. จึงรองรับอุปกรณ์เสริมได้หลากหลาย',
+          question: 'วิธีปรับโฟกัสของกล้อง SCT แตกต่างจากกล้องด็อบโซเนียนและกล้องหักเหแสงอย่างไร?',
+          answer: 'กล้องด็อบโซเนียนและหักเหแสงเลื่อนกระบอกรับเลนส์ใกล้ตา แต่กล้อง SCT หมุนเลื่อนกระจกปฐมภูมิทั้งแผ่นเดินหน้า-ถอยหลังตามแกนท่อบังแสง'
+        },
+        {
+          id: 'visualBack',
+          nameTh: 'ช่องมองหลังกล้องและท้ายท่อหล่อ',
+          nameEn: 'Cast Rear Cell & Visual Back',
+          role: 'โครงอะลูมิเนียมหล่อแข็งแรงที่มีสันระบายความร้อนและน็อตยึดรอบท้ายท่อ พร้อมข้อต่อเกลียวมาตรฐาน (Visual Back) สำหรับสวมกระจกเบี่ยงแสง 90° หรือต่อกล้องถ่ายภาพดาราศาสตร์',
+          physics: 'รับน้ำหนักกระจกปฐมภูมิและอุปกรณ์ท้ายกล้องให้ร่วมแกนแสงอย่างมั่นคง พร้อมครีบช่วยระบายความร้อนให้กระจกปรับอุณหภูมิเข้ากับอากาศภายนอกเร็วขึ้น',
+          question: 'เหตุใดกล้อง SCT จึงเหมาะกับการต่อกล้องถ่ายภาพดาราศาสตร์ที่ท้ายท่อ?',
+          answer: 'เพราะจุดรับน้ำหนักอยู่ใกล้แกนหมุนด้านหลังและมีระยะเลื่อนโฟกัส (Back Focus) กว้างมากจากการเลื่อนกระจกปฐมภูมิ'
+        },
+        {
+          id: 'diagonal',
+          nameTh: 'กระจกเบี่ยงแสง 90°',
+          nameEn: '90° Star Diagonal',
+          role: 'ชุดกระจกราบเอียง 45° ทรงลบมุมพร้อมวงแหวนล็อกทองเหลือง สวมที่ท้ายช่องมองหลังกล้อง ช่วยเบี่ยงแนวลำแสงขึ้น 90° ให้ก้มมองดาวมุมสูงได้สบายคอ',
+          physics: 'กฎการสะท้อน θᵢ = θᵣ = 45° เบี่ยงทิศลำแสงตั้งฉาก 90° และทำให้ภาพที่เห็นกลับซ้าย-ขวา (Mirror-reversed)',
+          question: 'ถ้าถอดกระจกเบี่ยงแสง 90° ออกแล้วใส่เลนส์ใกล้ตาต่อตรงกับท้ายกล้องได้หรือไม่?',
+          answer: 'ได้ครับ แต่ต้องหมุนปุ่มปรับโฟกัสชดเชยระยะทางเดินแสงที่หายไป และจะก้มมองวัตถุที่อยู่สูงเหนือศีรษะได้ลำบากมาก'
+        },
+        {
+          id: 'eyepiece',
+          nameTh: 'เลนส์ใกล้ตา',
+          nameEn: 'Eyepiece (Plössl 25mm)',
+          role: 'ชุดเลนส์ขยายภาพที่สวมบนกระจกเบี่ยงแสง 90° บนกล้อง 8" f/10 (โฟกัส 2,032 มม.) เลนส์ 25 มม. ให้กำลังขยายเริ่มต้น 81× พร้อมยางรองตาบังแสงรบกวน',
+          physics: 'กำลังขยาย M = F / f_e = 2032 / 25 ≈ 81.3× และมุมมองจริง TFOV = AFOV / M ≈ 0.64° (กว้างพอดีเห็นดวงจันทร์เต็มดวง)',
+          question: 'กล้อง 8" f/10 ตัวนี้ใช้เลนส์ใกล้ตา 25 มม. จะให้กำลังขยายสูงกว่ากล้องด็อบโซเนียน 8" f/6 ที่ใช้เลนส์ 25 มม. เหมือนกันหรือไม่?',
+          answer: 'สูงกว่าครับ! เพราะ SCT มีโฟกัส 2,032 มม. (ได้ 81×) ส่วนด็อบโซเนียน f/6 มีโฟกัส 1,200 มม. (ได้ 48×) จึงขยายดาวเคราะห์ได้ใหญ่กว่าเมื่อใช้เลนส์ใกล้ตาขนาดเดียวกัน'
+        },
+        {
+          id: 'finder',
+          nameTh: 'กล้องเล็งจุดแดง',
+          nameEn: 'StarPointer Red Dot Finder',
+          role: 'กล้องเล็งโครงเปิดแบบไม่มีกำลังขยาย (1×) ติดตั้งด้านบนท้ายท่อ ฉายจุดแสง LED สีแดงลงบนแผ่นกระจกใส ช่วยเล็งดาวอ้างอิงในขั้นตอนปรับเทียบ GoTo ได้รวดเร็วด้วยตาเปล่าทั้งสองข้าง',
+          physics: 'หลักการสะท้อนบางส่วนบนกระจกเคลือบกึ่งโปร่งใส (Beam Splitter) ทำให้เห็นจุดแดงลอยซ้อนทับบนท้องฟ้าจริงที่ระยะอนันต์โดยไม่มีพารัลแลกซ์',
+          question: 'ข้อดีของกล้องเล็งจุดแดง (1×) เมื่อเทียบกับกล้องเล็งแบบมีกำลังขยาย (8×50) คืออะไร?',
+          answer: 'ให้ภาพหัวตั้งเหมือนตาเปล่า มองเปิดตาได้ทั้งสองข้าง จึงเล็งหาดาวฤกษ์สว่างสำหรับทำ 2-Star Alignment ได้ไวกว่ามาก'
+        },
+        {
+          id: 'forkArm',
+          nameTh: 'แขนส้อม GoTo แขนเดี่ยว',
+          nameEn: 'Single Fork Arm Alt-Az GoTo Mount',
+          role: 'แขนอะลูมิเนียมหล่อทรงโค้งมนภายในบรรจุมอเตอร์ไฟฟ้า เฟืองทด และคลัตช์ปรับมุมเงย พร้อมรางประกบ Vixen แบบถอดเร็ว (Quick-Release Dovetail) และช่องเสียบสายรีโมทควบคุม',
+          physics: 'ชุดเฟืองทด (Gear Reduction) เปลี่ยนความเร็วรอบมอเตอร์สูงให้เป็นแรงบิดสูงและความละเอียดระดับฟิลิปดา ช่วยขับท่อกล้องชี้และตามดาวได้อย่างนุ่มนวล',
+          question: 'ทำไมฐาน GoTo แบบแขนเดี่ยวจึงออกแบบให้โค้งเว้าหลบด้านหลังท่อกล้อง?',
+          answer: 'เพื่อเพิ่มพื้นที่ว่างให้ท้ายท่อกล้อง กระจกเบี่ยงแสง และเลนส์ใกล้ตาสามารถเงยขึ้นถึง 90° (จุดเหนือศีรษะ) ได้โดยไม่ชนฐานด้านล่าง'
+        },
+        {
+          id: 'handController',
+          nameTh: 'รีโมทควบคุม GoTo',
+          nameEn: 'NexStar+ GoTo Hand Controller',
+          role: 'คอมพิวเตอร์พกพาพร้อมหน้าจอ LCD แสงสีแดงถนอมสายตากลางคืน ปุ่มกดเรืองแสง และสายไฟขดเกลียวต่อเข้าแขนส้อม บรรจุฐานข้อมูลวัตถุท้องฟ้ากว่า 40,000 วัตถุ สั่งมอเตอร์นำร่องและตามดาวอัตโนมัติ',
+          physics: 'ใช้การคำนวณตรีโกณมิติทรงกลม (Spherical Trigonometry) แปลงพิกัดศูนย์สูตร (RA/Dec) ของวัตถุท้องฟ้า เป็นพิกัดขอบฟ้า (Alt/Az) ตามเวลาและพิกัด GPS ปัจจุบัน',
+          question: 'เหตุใดหน้าจอและปุ่มกดของรีโมท GoTo จึงใช้แสงสีแดงแทนแสงสีขาวหรือสีฟ้า?',
+          answer: 'เพราะเซลล์รูปแท่ง (Rod Cells) ในดวงตาไวต่อแสงสีแดงน้อยที่สุด จึงช่วยรักษาสภาพการปรับสายตาในที่มืด (Night Vision / Dark Adaptation) ไม่ให้ม่านตาหดตัว'
+        },
+        {
+          id: 'azBase',
+          nameTh: 'ฐานหมุนมุมทิศและชุดมอเตอร์',
+          nameEn: 'Motorized Azimuth Base',
+          role: 'ฐานทรงกระบอกมีชุดมอเตอร์และเฟืองขับแกนมุมทิศ 360° แหล่งจ่ายไฟแบตเตอรี่/อะแดปเตอร์ 12V และสวิตช์เปิด-ปิด ทำหน้าที่หมุนแขนส้อมทั้งชุดไปตามทิศทางเป้าหมาย',
+          physics: 'ระบบฐาน Alt-Azimuth ควบคุมด้วยคอมพิวเตอร์ต้องขับมอเตอร์ทั้งแกน Az และแกน Alt พร้อมกันด้วยความเร็วที่แปรผันตลอดเวลาเพื่อติดตามการหมุนของทรงกลมท้องฟ้า',
+          question: 'การติดตามดาวของฐาน Alt-Az GoTo แตกต่างจากฐาน EQ อย่างไร?',
+          answer: 'ฐาน Alt-Az GoTo ต้องขับมอเตอร์ 2 แกนพร้อมกัน (ขึ้น-ลงและซ้าย-ขวา) เป็นขั้นบันไดละเอียด และเกิดการหมุนของกรอบภาพ (Field Rotation) เมื่อถ่ายภาพเปิดหน้ากล้องนาน ๆ'
+        },
+        {
+          id: 'tripod',
+          nameTh: 'ขาตั้ง 3 ขาสเตนเลสและถาดค้ำ',
+          nameEn: 'Heavy-Duty Stainless Steel Tripod',
+          role: 'ขาตั้งท่อสเตนเลสขัดเงาขนาดใหญ่ 2 ท่อนยืดหดได้ พร้อมตัวล็อกขาตั้ง ถาดสามเหลี่ยมยึดค้ำกลางสำหรับวางเลนส์ใกล้ตา และระดับน้ำสีเขียวบนหัวฐานเพื่อตั้งระนาบให้เที่ยงตรงก่อนทำ GoTo Alignment',
+          physics: 'หลักระนาบ 3 จุด (3-Point Support) และโครงสร้างสามเหลี่ยมช่วยซับแรงสั่นสะเทือน (Damping) จากการหมุนของมอเตอร์และลมได้ดีเยี่ยม',
+          question: 'เหตุใดก่อนเริ่มตั้งค่า GoTo จึงต้องปรับขาตั้งให้ฟองระดับน้ำอยู่ตรงกลางก่อนเสมอ?',
+          answer: 'เพราะคอมพิวเตอร์ในรีโมทคำนวณพิกัดมุมเงย-มุมทิศโดยอ้างอิงจากระนาบแนวนอน หากขาตั้งเอียงมาก ระบบนำร่อง GoTo จะชี้คลาดเคลื่อนจากเป้าหมาย'
+        },
+        {
+          id: 'solarFilter',
+          nameTh: 'ฝาปิดและแผ่นกรองแสงอาทิตย์',
+          nameEn: 'Front Aperture Solar Filter',
+          role: 'ฝาครอบสวมแน่นที่ปากท่อด้านหน้าแผ่นปรับแก้ชมิดต์ ติดแผ่นฟิล์มกรองแสงอาทิตย์มาตรฐานที่ลดความเข้มแสงลงมากกว่า 99.999% เพื่อสังเกตจุดดับบนดวงอาทิตย์อย่างปลอดภัย',
+          physics: 'กรองพลังงานรังสีดวงอาทิตย์ตั้งแต่หน้ากล้องก่อนเข้าสู่แผ่นปรับแก้และกระจกปฐมภูมิ ป้องกันความร้อนสะสมภายในท่อปิดและอันตรายต่อจอประสาทตา',
+          question: 'ข้อควรระวังสำคัญที่สุดก่อนส่องดวงอาทิตย์ด้วยกล้อง SCT คืออะไร?',
+          answer: 'ต้องสวมแผ่นกรองแสงอาทิตย์ที่ปากท่อให้แน่นหนาและปิดกล้องเล็งจุดแดงเสมอ ห้ามใช้แผ่นกรองชนิดขันท้ายเลนส์ใกล้ตาเด็ดขาดเพราะความร้อนที่จุดโฟกัสจะทำให้กระจกแตกทันที'
+        }
+      ];
+
+      var SETUP_STEPS = [
+        {
+          title: 'ขั้นที่ 1: กางขาตั้ง 3 ขาสเตนเลสและปรับระดับน้ำ',
+          desc: 'กางขาตั้งสเตนเลสทั้ง 3 ขาบนพื้นมั่นคง ขันถาดค้ำสามเหลี่ยมตรงกลางให้แน่น แล้วปรับความยาวขาจนฟองอากาศในระดับน้ำสีเขียวบนแท่นขาตั้งอยู่ตรงกลางเป๊ะ',
+          tip: '💡 เคล็ดลับ: ขาตั้งที่ได้ระดับน้ำช่วยให้ระบบคอมพิวเตอร์ GoTo คำนวณพิกัดท้องฟ้าได้แม่นยำยิ่งขึ้น',
+          highlight: ['tripod'],
+          visible: ['tripod'],
+          alt: 30, az: 0, light: false, xray: false, solar: false,
+          cam: { theta: 0.72, phi: 1.08, radius: 13.5, targetY: 2.5 }
+        },
+        {
+          title: 'ขั้นที่ 2: ยึดฐานหมุนและแขนส้อม GoTo บนขาตั้ง',
+          desc: 'วางฐานหมุนมุมทิศพร้อมแขนส้อม GoTo ลงบนยอดขาตั้ง 3 ขาให้ตรงสลักนำศูนย์ แล้วขันน็อตยึด 3 ตัวใต้แท่นขาตั้งให้แน่นสนิท',
+          tip: '💡 สังเกต: แขนส้อมออกแบบให้เว้าโค้งเพื่อเพิ่มความแข็งแรงและให้ท้ายท่อกล้องมีพื้นที่หมุนเงยได้เต็มที่',
+          highlight: ['azBase', 'forkArm'],
+          visible: ['tripod', 'azBase', 'forkArm'],
+          alt: 30, az: 20, light: false, xray: false, solar: false,
+          cam: { theta: 0.85, phi: 1.08, radius: 12.0, targetY: 5.2 }
+        },
+        {
+          title: 'ขั้นที่ 3: สไลด์ท่อกล้อง 8" เข้าล็อกบนรางประกบแขนส้อม',
+          desc: 'สอดรางประกบด้านข้างท่อกล้อง SCT เข้ากับแคลมป์ยึดบนแขนส้อม จัดสมดุลหน้า-หลังให้พอดี แล้วขันลูกบิดสีส้มล็อกรางให้แน่นหนา',
+          tip: '💡 เคล็ดลับ: วางตำแหน่งท่อให้สมดุลรอบแกนเงยช่วยลดภาระของเฟืองและมอเตอร์ GoTo ทำให้ตามดาวได้นุ่มนวล',
+          highlight: ['ota', 'corrector', 'primary', 'secondary', 'baffle'],
+          visible: ['tripod', 'azBase', 'forkArm', 'ota', 'corrector', 'primary', 'secondary', 'baffle', 'focusKnob', 'visualBack'],
+          alt: 35, az: 35, light: false, xray: false, solar: false,
+          cam: { theta: 0.74, phi: 1.12, radius: 14.0, targetY: 6.2 }
+        },
+        {
+          title: 'ขั้นที่ 4: ประกอบกระจกเบี่ยงแสง 90° เลนส์ใกล้ตา และกล้องเล็งจุดแดง',
+          desc: 'สวมกระจกเบี่ยงแสง 90° เข้ากับช่องมองหลังกล้อง ใส่เลนส์ใกล้ตา 25 มม. (81×) และติดตั้งกล้องเล็งจุดแดงโครงเปิดไว้ด้านบนท้ายท่อ',
+          tip: '💡 ลองกดปุ่ม "ท่อโปร่งใส" และ "เส้นทางแสง" เพื่อดูลำแสงพับ 3 ทบลอดรูกลางกระจกปฐมภูมิเข้าสู่เลนส์ใกล้ตา',
+          highlight: ['diagonal', 'eyepiece', 'finder', 'visualBack'],
+          visible: ['tripod', 'azBase', 'forkArm', 'ota', 'corrector', 'primary', 'secondary', 'baffle', 'focusKnob', 'visualBack', 'diagonal', 'eyepiece', 'finder'],
+          alt: 32, az: 35, light: true, xray: true, solar: false,
+          cam: { theta: 2.25, phi: 1.10, radius: 11.5, targetY: 6.4 }
+        },
+        {
+          title: 'ขั้นที่ 5: เสียบสายรีโมท GoTo เปิดเครื่อง และป้อนเวลา/พิกัด GPS',
+          desc: 'วางรีโมท NexStar+ บนช่องยึดข้างแขนส้อม เสียบสายไฟขดเกลียวเข้าพอร์ต เปิดสวิตช์ไฟ 12V แล้วป้อนวันที่ เวลาปัจจุบัน และพิกัดละติจูด/ลองจิจูดลงบนหน้าจอ LCD สีแดง',
+          tip: '💡 หลักฟิสิกส์: ข้อมูลเวลาและพิกัดบนโลกทำให้คอมพิวเตอร์ทราบตำแหน่งทรงกลมท้องฟ้าเหนือศีรษะคุณ ณ วินาทีนั้น',
+          highlight: ['handController', 'azBase'],
+          visible: ['tripod', 'azBase', 'forkArm', 'ota', 'corrector', 'primary', 'secondary', 'baffle', 'focusKnob', 'visualBack', 'diagonal', 'eyepiece', 'finder', 'handController'],
+          alt: 35, az: 35, light: false, xray: false, solar: false,
+          cam: { theta: -0.65, phi: 1.12, radius: 10.5, targetY: 6.0 }
+        },
+        {
+          title: 'ขั้นที่ 6: ทำ 2-Star Alignment ปรับเทียบดาวอ้างอิง 2 ดวง',
+          desc: 'ใช้ปุ่มลูกศรบนรีโมทควบคุมให้มอเตอร์ส่ายกล้องเล็งดาวฤกษ์สว่างอ้างอิง 2 ดวง (เช่น ซิริอัส → เวกา) ให้จุดแดงอยู่กลางดาวแล้วกดยืนยัน คอมพิวเตอร์จะสร้างแบบจำลองท้องฟ้าได้สมบูรณ์',
+          tip: '💡 สังเกตแอนิเมชั่น: มอเตอร์กำลังส่ายกล้องระหว่างดาวอ้างอิง 2 ดวงเพื่อปรับเทียบพิกัด GoTo',
+          highlight: ['finder', 'handController', 'forkArm'],
+          visible: ['tripod', 'azBase', 'forkArm', 'ota', 'corrector', 'primary', 'secondary', 'baffle', 'focusKnob', 'visualBack', 'diagonal', 'eyepiece', 'finder', 'handController'],
+          alt: 45, az: 140, light: false, xray: false, solar: false,
+          cam: { theta: 0.72, phi: 1.10, radius: 14.5, targetY: 6.2 }
+        },
+        {
+          title: 'ขั้นที่ 7: สั่ง GoTo นำร่องดาวเสาร์ และหมุนปุ่มเลื่อนกระจกปฐมภูมิปรับโฟกัส',
+          desc: 'เลือก "Saturn" บนรีโมท มอเตอร์จะนำร่องไปที่ดาวเสาร์และตามดาวให้อัตโนมัติ จากนั้นหมุนปุ่มปรับโฟกัสหลังกล้องเพื่อเลื่อนกระจกปฐมภูมิเดินหน้า-ถอยหลังจนวงแหวนดาวเสาร์คมชัด',
+          tip: '💡 สังเกตภายในท่อโปร่งใส: ปุ่มปรับโฟกัสกำลังหมุนและเลื่อนกระจกปฐมภูมิทั้งแผ่นเดินหน้า-ถอยหลังจริง!',
+          highlight: ['focusKnob', 'primary'],
+          visible: ['tripod', 'azBase', 'forkArm', 'ota', 'corrector', 'primary', 'secondary', 'baffle', 'focusKnob', 'visualBack', 'diagonal', 'eyepiece', 'finder', 'handController'],
+          alt: 56, az: 212, light: true, xray: true, solar: false,
+          cam: { theta: 1.45, phi: 1.12, radius: 11.8, targetY: 6.5 }
+        },
+        {
+          title: 'ขั้นที่ 8: สวมแผ่นกรองแสงอาทิตย์หน้าปากท่ออย่างปลอดภัย',
+          desc: 'หากต้องการสังเกตจุดดับบนดวงอาทิตย์ ต้องสวมฝาแผ่นกรองแสงอาทิตย์มาตรฐานที่หน้าปากท่อให้แน่นหนาและปิดกล้องเล็งจุดแดงทุกครั้งก่อนหันกล้องไปทางดวงอาทิตย์!',
+          tip: '⚠️ คำเตือนความปลอดภัย: ห้ามส่องดวงอาทิตย์ผ่านกล้องโทรทรรศน์หรือกล้องเล็งโดยไม่มีแผ่นกรองแสงอาทิตย์หน้าปากท่อเด็ดขาด!',
+          highlight: ['solarFilter'],
+          visible: 'all',
+          alt: 42, az: 118, light: false, xray: false, solar: true,
+          cam: { theta: 0.65, phi: 1.05, radius: 13.8, targetY: 6.4 }
+        }
+      ];
+
+      var PHYSICS_TOPICS = [
+        {
+          title: '1. ระบบทัศนศาสตร์พับ 3 ทบ (Folded Catadioptric Optics)',
+          formula: 'F_eff = F_primary × m_secondary  (≈ 406 × 5 = 2,032 mm)',
+          body: 'ผสมผสานทั้งเลนส์ (หักเห) และกระจก (สะท้อน) โดยพับทางเดินแสงไป-กลับ 3 ทบ และใช้กระจกทุติยภูมินูนขยายโฟกัส 5 เท่า ทำให้ได้โฟกัสยาวถึง 2 เมตรในท่อยาวเพียง 43 ซม.'
+        },
+        {
+          title: '2. การแก้ความคลาดทรงกลมด้วยแผ่นชมิดต์และเลนส์เมนิสคัส',
+          formula: 'n₁ sin θ₁ = n₂ sin θ₂   (Aspheric / Meniscus Correction)',
+          body: 'กระจกปฐมภูมิทรงกลมผลิตง่ายแต่เกิดความคลาดทรงกลม แผ่นปรับแก้ชมิดต์ (SCT) มีผิวโค้งคลื่นบาง ๆ ส่วนเลนส์เมนิสคัส (MAK) โค้งหนา ทั้งคู่หักเหแสงขาเข้าล่วงหน้าให้ทุกรังสีรวมลงจุดโฟกัสเดียวกัน'
+        },
+        {
+          title: '3. การขยายโฟกัสด้วยกระจกทุติยภูมิโค้งนูน',
+          formula: '1/f_sec = 1/s + 1/s\'   (f_sec < 0)',
+          body: 'กระจกทุติยภูมิเป็นกระจกโค้งนูนจึงลดความชันของกรวยแสงที่สะท้อนจากกระจกปฐมภูมิ f/2 ให้กลายเป็นกรวยแสงเรียวยาว f/10 พุ่งลอดรูกลางกระจกออกไปท้ายกล้อง'
+        },
+        {
+          title: '4. การปรับโฟกัสด้วยการเลื่อนกระจกปฐมภูมิ',
+          formula: 'Δs_focus ≈ m² · Δd   (≈ 25 × Δd)',
+          body: 'เมื่อหมุนปุ่มปรับโฟกัสเลื่อนกระจกปฐมภูมิเปลี่ยนระยะห่าง d เพียง 1 มม. ตำแหน่งจุดโฟกัสหลังกล้องจะเลื่อนได้มากถึง m² ≈ 25 มม. ทำให้รองรับทั้งเลนส์ใกล้ตาและกล้องถ่ายภาพได้กว้างมาก'
+        },
+        {
+          title: '5. ความสามารถรวมแสงและการบดบังส่วนกลาง',
+          formula: 'A_eff = π(R² - r_sec²)   |   LGP ∝ D²',
+          body: 'กล้อง 8 นิ้ว (203 มม.) รวมแสงได้มากกว่ารูม่านตาคน (7 มม.) ถึง 841 เท่า แม้กระจกทุติยภูมิจะบังเส้นผ่านศูนย์กลาง ~34% (พื้นที่ ~11%) แต่ไม่มีแฉกเลี้ยวเบนจากขาแมงมุม'
+        },
+        {
+          title: '6. กำลังขยายและกำลังแยกภาพ (Magnification & Dawes\' Limit)',
+          formula: 'M = F / f_e   |   θ_Dawes = 116 / D_mm ≈ 0.57"',
+          body: 'โฟกัสที่ยาวถึง 2,032 มม. ทำให้ได้กำลังขยายสูงมากด้วยเลนส์ใกล้ตาขนาดปกติ (เช่น 25 มม. = 81×, 10 มม. = 203×) เหมาะอย่างยิ่งสำหรับส่องดาวเคราะห์ ดวงจันทร์ และกระจุกดาวทรงกลม'
+        },
+        {
+          title: '7. ตรีโกณมิติทรงกลมในระบบนำร่อง GoTo',
+          formula: 'sin(Alt) = sin(φ)sin(δ) + cos(φ)cos(δ)cos(H)',
+          body: 'คอมพิวเตอร์ในรีโมทแปลงพิกัดศูนย์สูตร (RA/Dec) ของวัตถุท้องฟ้าเป็นมุมเงย (Alt) และมุมทิศ (Az) ตามละติจูด (φ) และเวลาดาราคติ เพื่อสั่งมอเตอร์ทั้งสองแกนขับกล้องไปหาและตามดาวอัตโนมัติ'
+        },
+        {
+          title: '8. โมเมนต์ความเฉื่อยและการซับแรงสั่นสะเทือน',
+          formula: 'I = Σ mᵢ rᵢ²',
+          body: 'ท่อกล้องแบบผสมที่สั้นและรวมมวลใกล้แกนหมุนทำให้มีค่าโมเมนต์ความเฉื่อย (I) ต่ำกว่าท่อยาวมาก จึงลดอาการสั่นไหวเมื่อโดนลมและช่วยให้มอเตอร์ GoTo หยุดนิ่งได้อย่างรวดเร็ว'
+        }
+      ];
+
+      // =========================================================================
+      // 2. Procedural Canvas Textures & Realistic Environment Map
+      // =========================================================================
+      function createCompassGroundTexture() {
+        var c = document.createElement('canvas');
+        c.width = 512;
+        c.height = 512;
+        var ctx = c.getContext('2d');
+        var g = ctx.createRadialGradient(256, 256, 30, 256, 256, 252);
+        g.addColorStop(0.0, 'rgba(13, 22, 42, 0.92)');
+        g.addColorStop(0.58, 'rgba(9, 16, 32, 0.78)');
+        g.addColorStop(0.84, 'rgba(6, 11, 22, 0.34)');
+        g.addColorStop(1.0, 'rgba(4, 8, 20, 0.0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 512, 512);
+
+        ctx.strokeStyle = 'rgba(249, 115, 22, 0.30)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(256, 256, 198, 0, Math.PI * 2);
+        ctx.stroke();
+
+        for (var deg = 0; deg < 360; deg += 15) {
+          var rad = (deg * Math.PI) / 180;
+          var r1 = deg % 90 === 0 ? 182 : 191;
+          var r2 = 198;
+          ctx.strokeStyle = deg === 180 ? 'rgba(248, 113, 113, 0.85)' : 'rgba(249, 115, 22, 0.32)';
+          ctx.lineWidth = deg % 90 === 0 ? 2.5 : 1.2;
+          ctx.beginPath();
+          ctx.moveTo(256 + Math.sin(rad) * r1, 256 - Math.cos(rad) * r1);
+          ctx.lineTo(256 + Math.sin(rad) * r2, 256 - Math.cos(rad) * r2);
+          ctx.stroke();
+        }
+
+        ctx.font = 'bold 28px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#f87171';
+        ctx.fillText('N', 256, 474);
+        ctx.fillStyle = '#fdba74';
+        ctx.fillText('S', 256, 38);
+        ctx.fillText('E', 38, 256);
+        ctx.fillText('W', 474, 256);
+
+        return new THREE.CanvasTexture(c);
+      }
+
+      function createTubeMetallicTexture() {
+        var c = document.createElement('canvas');
+        c.width = 1024;
+        c.height = 512;
+        var ctx = c.getContext('2d');
+        var grad = ctx.createLinearGradient(0, 0, 0, 512);
+        grad.addColorStop(0.0, '#c8500c');
+        grad.addColorStop(0.32, '#ea580c');
+        grad.addColorStop(0.50, '#fb711e');
+        grad.addColorStop(0.68, '#ea580c');
+        grad.addColorStop(1.0, '#b54509');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 1024, 512);
+
+        // เม็ดสีเมทัลลิกอ่อน ๆ
+        for (var i = 0; i < 4500; i++) {
+          var sx = Math.random() * 1024;
+          var sy = Math.random() * 512;
+          ctx.fillStyle = i % 2 === 0 ? 'rgba(255, 237, 213, 0.08)' : 'rgba(67, 20, 7, 0.08)';
+          ctx.fillRect(sx, sy, 2, 2);
+        }
+
+        // ป้ายรุ่น NexStar 8SE ด้านข้างท่อทั้ง 2 ฝั่ง
+        [190, 702].forEach(function (bx) {
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.74)';
+          ctx.fillRect(bx, 206, 260, 96);
+          ctx.strokeStyle = 'rgba(251, 191, 36, 0.78)';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(bx, 206, 260, 96);
+
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = 'bold 32px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('NexStar 8SE', bx + 130, 242);
+          ctx.fillStyle = '#fdba74';
+          ctx.font = 'bold 15px sans-serif';
+          ctx.fillText('203mm f/10 • F=2032mm', bx + 130, 278);
+        });
+
+        var tex = new THREE.CanvasTexture(c);
+        tex.encoding = THREE.sRGBEncoding;
+        return tex;
+      }
+
+      function createFrontRingTextTexture() {
+        var c = document.createElement('canvas');
+        c.width = 512;
+        c.height = 512;
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#111620';
+        ctx.fillRect(0, 0, 512, 512);
+
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(256, 256, 235, 0, Math.PI * 2);
+        ctx.stroke();
+
+        var text = 'SCHMIDT-CASSEGRAIN  •  D=203mm  •  F=2032mm  •  f/10  •  ';
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = 'bold 18px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        var radius = 212;
+        for (var i = 0; i < text.length; i++) {
+          var ang = (i / text.length) * Math.PI * 2 - Math.PI / 2;
+          ctx.save();
+          ctx.translate(256 + Math.cos(ang) * radius, 256 + Math.sin(ang) * radius);
+          ctx.rotate(ang + Math.PI / 2);
+          ctx.fillText(text[i], 0, 0);
+          ctx.restore();
+        }
+        var tex = new THREE.CanvasTexture(c);
+        tex.encoding = THREE.sRGBEncoding;
+        return tex;
+      }
+
+      function createEyepieceLabelTexture() {
+        var c = document.createElement('canvas');
+        c.width = 512;
+        c.height = 128;
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#161b24';
+        ctx.fillRect(0, 0, 512, 128);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(0, 14, 512, 6);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('PLÖSSL 25mm • 52° AFOV • FMC', 256, 68);
+        var tex = new THREE.CanvasTexture(c);
+        tex.wrapS = THREE.RepeatWrapping;
+        return tex;
+      }
+
+      // หน้าจอ LCD สีแดงของรีโมท GoTo (อัปเดตข้อความได้แบบเรียลไทม์)
+      var lcdCanvas = document.createElement('canvas');
+      lcdCanvas.width = 256;
+      lcdCanvas.height = 112;
+      var lcdCtx = lcdCanvas.getContext('2d');
+      var lcdTex = new THREE.CanvasTexture(lcdCanvas);
+
+      function updateHandControllerLCD(line1, line2) {
+        lcdCtx.fillStyle = '#3b070c';
+        lcdCtx.fillRect(0, 0, 256, 112);
+        lcdCtx.strokeStyle = '#ef4444';
+        lcdCtx.lineWidth = 4;
+        lcdCtx.strokeRect(4, 4, 248, 104);
+        lcdCtx.fillStyle = '#ff6b6b';
+        lcdCtx.font = 'bold 24px monospace';
+        lcdCtx.textAlign = 'center';
+        lcdCtx.textBaseline = 'middle';
+        lcdCtx.fillText(line1 || 'NexStar 8SE', 128, 38);
+        lcdCtx.fillStyle = '#fca5a5';
+        lcdCtx.font = 'bold 21px monospace';
+        lcdCtx.fillText(line2 || 'ALT:38  AZ:35', 128, 76);
+        lcdTex.needsUpdate = true;
+      }
+      updateHandControllerLCD('NexStar 8SE', 'ALT:38  AZ:35');
+
+      function createNightEnvMap(renderer) {
+        try {
+          var pmrem = new THREE.PMREMGenerator(renderer);
+          var envScene = new THREE.Scene();
+          envScene.background = new THREE.Color(0x070d1c);
+
+          var sky = new THREE.Mesh(
+            new THREE.SphereGeometry(32, 24, 16),
+            new THREE.MeshBasicMaterial({ color: 0x102042, side: THREE.BackSide })
+          );
+          envScene.add(sky);
+
+          var lights = [
+            { pos: [14, 18, 12], color: 0xfff7ed, size: 6.2 },
+            { pos: [-14, 12, -10], color: 0x60a5fa, size: 5.0 },
+            { pos: [0, 22, 2], color: 0xe0f2fe, size: 6.5 },
+            { pos: [12, 4, -14], color: 0xfdba74, size: 4.0 },
+            { pos: [-10, -4, 10], color: 0x1e293b, size: 7.0 }
+          ];
+          for (var i = 0; i < lights.length; i++) {
+            var lc = lights[i];
+            var m = new THREE.Mesh(
+              new THREE.SphereGeometry(lc.size, 12, 12),
+              new THREE.MeshBasicMaterial({ color: lc.color })
+            );
+            m.position.set(lc.pos[0], lc.pos[1], lc.pos[2]);
+            envScene.add(m);
+          }
+          var rt = pmrem.fromScene(envScene, 0.04);
+          pmrem.dispose();
+          return rt.texture;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      // =========================================================================
+      // 3. WebGLRenderer, Scene, Camera (ครอบด้วย try/catch)
+      // =========================================================================
+      var container = document.getElementById('three-container');
+      var scene, camera, renderer;
+
+      try {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x040814);
+
+        var initW = Math.max(container.clientWidth, 300);
+        var initH = Math.max(container.clientHeight, 300);
+        camera = new THREE.PerspectiveCamera(42, initW / initH, 0.1, 220);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(initW, initH);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.22;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        container.appendChild(renderer.domElement);
+
+        var envTex = createNightEnvMap(renderer);
+        if (envTex) scene.environment = envTex;
+      } catch (err) {
+        if (window.__SHOW_FATAL_ERROR__) {
+          window.__SHOW_FATAL_ERROR__(
+            'เบราว์เซอร์ไม่สามารถเปิดใช้งาน WebGL 3D ได้',
+            'รายละเอียด: ' + (err && err.message ? err.message : String(err))
+          );
+        }
+        return;
+      }
+
+      // ระบบแสงสมจริง 3 จุด + เงาตกพื้น
+      var hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x0f172a, 0.72);
+      scene.add(hemiLight);
+
+      var dirLight = new THREE.DirectionalLight(0xfff7ed, 1.55);
+      dirLight.position.set(10, 18, 12);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 2;
+      dirLight.shadow.camera.far = 45;
+      var dShadow = 10;
+      dirLight.shadow.camera.left = -dShadow;
+      dirLight.shadow.camera.right = dShadow;
+      dirLight.shadow.camera.top = dShadow;
+      dirLight.shadow.camera.bottom = -dShadow;
+      dirLight.shadow.bias = -0.0005;
+      scene.add(dirLight);
+
+      var rimLight = new THREE.DirectionalLight(0x38bdf8, 0.72);
+      rimLight.position.set(-13, 9, -11);
+      scene.add(rimLight);
+
+      var warmFill = new THREE.PointLight(0xf97316, 0.38, 28);
+      warmFill.position.set(6, 5, -9);
+      scene.add(warmFill);
+
+      // ท้องฟ้ากลางคืนมีดวงดาว
+      (function buildStars() {
+        var count = 1400;
+        var pos = new Float32Array(count * 3);
+        var col = new Float32Array(count * 3);
+        var palette = [
+          new THREE.Color(0xffffff),
+          new THREE.Color(0xbae6fd),
+          new THREE.Color(0xfef08a),
+          new THREE.Color(0xfdba74)
+        ];
+        for (var i = 0; i < count; i++) {
+          var r = 55 + Math.random() * 85;
+          var theta = Math.random() * Math.PI * 2;
+          var phi = Math.acos(2 * Math.random() - 1);
+          pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+          pos[i * 3 + 1] = Math.abs(r * Math.cos(phi)) * 0.95 - 5;
+          pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+          var c = palette[Math.floor(Math.random() * palette.length)];
+          col[i * 3] = c.r;
+          col[i * 3 + 1] = c.g;
+          col[i * 3 + 2] = c.b;
+        }
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        var mat = new THREE.PointsMaterial({
+          size: 0.45,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.9,
+          sizeAttenuation: true
+        });
+        scene.add(new THREE.Points(geo, mat));
+      })();
+
+      // พื้นรองรับเงาขนาดกะทัดรัด (1.6× ของระยะกางขาตั้ง 3 ขา) พร้อมเข็มทิศ N/E/S/W
+      var TRIPOD_SPREAD = 2.45;
+      var GROUND_RADIUS = TRIPOD_SPREAD * 1.6;
+      var compassDisc = new THREE.Mesh(
+        new THREE.CircleGeometry(GROUND_RADIUS, 64),
+        new THREE.MeshBasicMaterial({
+          map: createCompassGroundTexture(),
+          transparent: true,
+          depthWrite: false
+        })
+      );
+      compassDisc.rotation.x = -Math.PI / 2;
+      compassDisc.position.y = 0.002;
+      scene.add(compassDisc);
+
+      var shadowCatcher = new THREE.Mesh(
+        new THREE.CircleGeometry(GROUND_RADIUS, 64),
+        new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.65 })
+      );
+      shadowCatcher.rotation.x = -Math.PI / 2;
+      shadowCatcher.position.y = 0.006;
+      shadowCatcher.receiveShadow = true;
+      scene.add(shadowCatcher);
+
+      // =========================================================================
+      // 4. วัสดุ PBR เกรดสมจริง (MeshPhysicalMaterial + โลหะขัดเงา + พ่นสีเมทัลลิก)
+      // =========================================================================
+      var tubeTex = createTubeMetallicTexture();
+      var frontRingTex = createFrontRingTextTexture();
+      var epLabelTex = createEyepieceLabelTexture();
+
+      var matOrangeMetallic = new THREE.MeshPhysicalMaterial({
+        map: tubeTex,
+        color: 0xffffff,
+        metalness: 0.56,
+        roughness: 0.24,
+        clearcoat: 0.92,
+        clearcoatRoughness: 0.12,
+        envMapIntensity: 1.45,
+        transparent: false,
+        opacity: 1.0,
+        side: THREE.FrontSide
+      });
+      var matOrangeTrim = new THREE.MeshPhysicalMaterial({
+        color: 0xea580c,
+        metalness: 0.58,
+        roughness: 0.22,
+        clearcoat: 0.85,
+        clearcoatRoughness: 0.14,
+        envMapIntensity: 1.35
+      });
+      var matTubeInner = new THREE.MeshStandardMaterial({
+        color: 0x080c14,
+        roughness: 0.96,
+        metalness: 0.05,
+        transparent: false,
+        opacity: 1.0,
+        side: THREE.BackSide
+      });
+      var matCastGunmetal = new THREE.MeshPhysicalMaterial({
+        color: 0x252d3b,
+        metalness: 0.74,
+        roughness: 0.34,
+        clearcoat: 0.28,
+        clearcoatRoughness: 0.38,
+        envMapIntensity: 1.3
+      });
+      var matAnodizedBlack = new THREE.MeshStandardMaterial({
+        color: 0x161c26,
+        metalness: 0.78,
+        roughness: 0.28,
+        envMapIntensity: 1.25
+      });
+      var matStainless = new THREE.MeshStandardMaterial({
+        color: 0xe6effa,
+        metalness: 0.96,
+        roughness: 0.13,
+        envMapIntensity: 1.65
+      });
+      var matBrass = new THREE.MeshStandardMaterial({
+        color: 0xd4af37,
+        metalness: 0.90,
+        roughness: 0.20,
+        envMapIntensity: 1.4
+      });
+      var matRubber = new THREE.MeshStandardMaterial({
+        color: 0x11151d,
+        metalness: 0.04,
+        roughness: 0.88
+      });
+      var matMirror = new THREE.MeshStandardMaterial({
+        color: 0xf0f7ff,
+        metalness: 0.98,
+        roughness: 0.03,
+        envMapIntensity: 1.85,
+        side: THREE.DoubleSide
+      });
+      var matCorrectorGlass = new THREE.MeshPhysicalMaterial({
+        color: 0x7dd3fc,
+        metalness: 0.08,
+        roughness: 0.05,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.04,
+        transparent: true,
+        opacity: 0.28,
+        envMapIntensity: 1.9,
+        side: THREE.DoubleSide
+      });
+      var matMeniscusGlass = new THREE.MeshPhysicalMaterial({
+        color: 0x38bdf8,
+        metalness: 0.12,
+        roughness: 0.05,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.04,
+        transparent: true,
+        opacity: 0.42,
+        envMapIntensity: 2.0,
+        side: THREE.DoubleSide
+      });
+      var matRedButton = new THREE.MeshStandardMaterial({
+        color: 0x7f1d1d,
+        emissive: 0xef4444,
+        emissiveIntensity: 0.55,
+        roughness: 0.4
+      });
+      var matBubbleGreen = new THREE.MeshStandardMaterial({
+        color: 0x22c55e,
+        emissive: 0x16a34a,
+        emissiveIntensity: 0.45,
+        roughness: 0.15,
+        metalness: 0.1
+      });
+      var matSolarFilm = new THREE.MeshStandardMaterial({
+        color: 0xfbbf24,
+        metalness: 0.96,
+        roughness: 0.07,
+        envMapIntensity: 1.9
+      });
+      var matLensCoat = new THREE.MeshStandardMaterial({
+        color: 0x0284c7,
+        metalness: 0.35,
+        roughness: 0.08,
+        transparent: true,
+        opacity: 0.72
+      });
+
+      var clickableParts = {};
+      var raycastMeshes = [];
+
+      function registerPart(id, group, explodeOffset) {
+        clickableParts[id] = {
+          id: id,
+          group: group,
+          meshes: [],
+          basePos: group.position.clone(),
+          explodeOffset: explodeOffset.clone(),
+          currentExplode: 0
+        };
+      }
+
+      function attachMesh(partId, mesh, castShadow, receiveShadow) {
+        if (castShadow === undefined) castShadow = true;
+        if (receiveShadow === undefined) receiveShadow = true;
+        if (mesh.material) mesh.material = mesh.material.clone();
+        mesh.castShadow = castShadow;
+        mesh.receiveShadow = receiveShadow;
+        mesh.userData.partId = partId;
+        if (mesh.material && mesh.material.emissive) {
+          mesh.userData.origEmissive = mesh.material.emissive.clone();
+          mesh.userData.origEmissiveIntensity = mesh.material.emissiveIntensity || 0;
+        }
+        clickableParts[partId].meshes.push(mesh);
+        raycastMeshes.push(mesh);
+        return mesh;
+      }
+
+      function createRodBetween(pA, pB, rTop, rBot, mat) {
+        var dir = new THREE.Vector3().subVectors(pB, pA);
+        var len = dir.length();
+        var mesh = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, len, 20), mat);
+        mesh.position.copy(pA).add(pB).multiplyScalar(0.5);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+        return mesh;
+      }
+
+      // =========================================================================
+      // 5. สร้างโมเดล 3D สไตล์ Celestron NexStar 8SE สมจริง (15 ชิ้นส่วน)
+      // =========================================================================
+      var telescopeRoot = new THREE.Group();
+      scene.add(telescopeRoot);
+
+      var TRIPOD_TOP_Y = 4.35;
+
+      // -------------------------------------------------------------------------
+      // 5.1 ขาตั้ง 3 ขาสเตนเลสขัดเงาหนา 2 ท่อน + ถาดค้ำ + ระดับน้ำ (tripodGroup)
+      // -------------------------------------------------------------------------
+      var tripodGroup = new THREE.Group();
+      telescopeRoot.add(tripodGroup);
+      registerPart('tripod', tripodGroup, new THREE.Vector3(0, -1.25, 0));
+
+      var tripodHead = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.04, 0.34, 40), matCastGunmetal);
+      tripodHead.position.y = TRIPOD_TOP_Y - 0.16;
+      tripodGroup.add(attachMesh('tripod', tripodHead));
+
+      var headRim = new THREE.Mesh(new THREE.TorusGeometry(0.98, 0.04, 12, 40), matAnodizedBlack);
+      headRim.rotation.x = Math.PI / 2;
+      headRim.position.y = TRIPOD_TOP_Y - 0.02;
+      tripodGroup.add(attachMesh('tripod', headRim));
+
+      // ฟองอากาศระดับน้ำสีเขียวบนหัวขาตั้ง
+      var levelBezel = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.06, 20), matAnodizedBlack);
+      levelBezel.position.set(0.72, TRIPOD_TOP_Y + 0.02, 0.42);
+      tripodGroup.add(attachMesh('tripod', levelBezel));
+      var levelGlass = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.07, 20), matBubbleGreen);
+      levelGlass.position.set(0.72, TRIPOD_TOP_Y + 0.025, 0.42);
+      tripodGroup.add(attachMesh('tripod', levelGlass, false, false));
+
+      var spreaderY = 1.92;
+      var legAngles = [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3];
+
+      legAngles.forEach(function (ang) {
+        var sx = Math.sin(ang);
+        var cz = Math.cos(ang);
+        var pTop = new THREE.Vector3(sx * 0.72, TRIPOD_TOP_Y - 0.24, cz * 0.72);
+        var pMid = new THREE.Vector3(sx * (TRIPOD_SPREAD * 0.57), spreaderY, cz * (TRIPOD_SPREAD * 0.57));
+        var pBot = new THREE.Vector3(sx * TRIPOD_SPREAD, 0.10, cz * TRIPOD_SPREAD);
+
+        // หูยึดขาตั้งหล่อ
+        var lug = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.34, 0.36), matCastGunmetal);
+        lug.position.set(sx * 0.78, TRIPOD_TOP_Y - 0.24, cz * 0.78);
+        lug.rotation.y = ang;
+        tripodGroup.add(attachMesh('tripod', lug));
+
+        // ท่อสเตนเลสหนา 2 ท่อน
+        tripodGroup.add(attachMesh('tripod', createRodBetween(pTop, pMid, 0.145, 0.14, matStainless)));
+        tripodGroup.add(attachMesh('tripod', createRodBetween(pMid, pBot, 0.11, 0.10, matStainless)));
+
+        // ข้อต่อล็อกขาตั้งพร้อมลูกบิดขัน
+        var collar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.30, 20), matAnodizedBlack);
+        collar.position.copy(pMid);
+        tripodGroup.add(attachMesh('tripod', collar));
+        var lockKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.18, 14), matRubber);
+        lockKnob.position.set(pMid.x + sx * 0.22, pMid.y, pMid.z + cz * 0.22);
+        lockKnob.rotation.set(cz * Math.PI / 2, 0, -sx * Math.PI / 2);
+        tripodGroup.add(attachMesh('tripod', lockKnob));
+
+        // ปลายยางรองขาตั้ง
+        var foot = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.16, 0.20, 18), matRubber);
+        foot.position.set(pBot.x, 0.10, pBot.z);
+        tripodGroup.add(attachMesh('tripod', foot));
+
+        // ก้านค้ำเชื่อมถาดกลาง
+        tripodGroup.add(attachMesh('tripod', createRodBetween(new THREE.Vector3(0, spreaderY, 0), pMid, 0.05, 0.05, matAnodizedBlack)));
+      });
+
+      // ถาดวางอุปกรณ์สามเหลี่ยมลบมุม
+      var trayShape = new THREE.Shape();
+      for (var ti = 0; ti < 3; ti++) {
+        var ta = legAngles[ti];
+        var tx = Math.sin(ta) * 0.96;
+        var ty = Math.cos(ta) * 0.96;
+        if (ti === 0) trayShape.moveTo(tx, ty);
+        else trayShape.lineTo(tx, ty);
+      }
+      trayShape.closePath();
+      var trayGeo = new THREE.ExtrudeGeometry(trayShape, { depth: 0.09, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.025, bevelSegments: 2 });
+      trayGeo.rotateX(Math.PI / 2);
+      var trayMesh = new THREE.Mesh(trayGeo, matCastGunmetal);
+      trayMesh.position.y = spreaderY + 0.06;
+      tripodGroup.add(attachMesh('tripod', trayMesh));
+
+      legAngles.forEach(function (ang) {
+        var holder = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.025, 10, 20), matOrangeTrim);
+        holder.rotation.x = Math.PI / 2;
+        holder.position.set(Math.sin(ang) * 0.50, spreaderY + 0.075, Math.cos(ang) * 0.50);
+        tripodGroup.add(attachMesh('tripod', holder));
+      });
+
+      // แกนเกลียวยึดกลางขาตั้ง
+      var centerRod = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, TRIPOD_TOP_Y - spreaderY, 16), matStainless);
+      centerRod.position.y = (TRIPOD_TOP_Y + spreaderY) / 2;
+      tripodGroup.add(attachMesh('tripod', centerRod));
+
+      // กลุ่มหมุนมุมทิศ (azGroup)
+      var azGroup = new THREE.Group();
+      azGroup.position.y = TRIPOD_TOP_Y;
+      telescopeRoot.add(azGroup);
+
+      // -------------------------------------------------------------------------
+      // 5.2 ฐานหมุนมุมทิศและชุดมอเตอร์ (azBaseGroup)
+      // -------------------------------------------------------------------------
+      var azBaseGroup = new THREE.Group();
+      azGroup.add(azBaseGroup);
+      registerPart('azBase', azBaseGroup, new THREE.Vector3(0, -0.35, 0));
+
+      // ทรงกระบอกฐานหลายชั้นแบบ NexStar SE
+      var azLower = new THREE.Mesh(new THREE.CylinderGeometry(1.14, 1.22, 0.36, 48), matCastGunmetal);
+      azLower.position.y = 0.18;
+      azBaseGroup.add(attachMesh('azBase', azLower));
+
+      var azRingAccent = new THREE.Mesh(new THREE.CylinderGeometry(1.155, 1.155, 0.07, 48), matOrangeTrim);
+      azRingAccent.position.y = 0.39;
+      azBaseGroup.add(attachMesh('azBase', azRingAccent));
+
+      var azUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.96, 1.12, 0.42, 48), matCastGunmetal);
+      azUpper.position.y = 0.62;
+      azBaseGroup.add(attachMesh('azBase', azUpper));
+
+      // ช่องพอร์ตไฟ 12V และสวิตช์เปิด-ปิดสีแดง
+      var powerPanel = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.08), matAnodizedBlack);
+      powerPanel.position.set(0, 0.58, 1.04);
+      azBaseGroup.add(attachMesh('azBase', powerPanel));
+      var powerLed = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 10), matRedButton);
+      powerLed.position.set(0.11, 0.58, 1.09);
+      azBaseGroup.add(attachMesh('azBase', powerLed, false, false));
+
+      // -------------------------------------------------------------------------
+      // 5.3 แขนส้อม GoTo ทรงโค้งมนลบมุม (forkArmGroup)
+      // -------------------------------------------------------------------------
+      var ALT_PIVOT_Y = 2.85; // สูงจาก TRIPOD_TOP_Y
+      var FORK_X = -1.62;     // แขนส้อมอยู่ด้านซ้าย (-X)
+      var forkArmGroup = new THREE.Group();
+      azGroup.add(forkArmGroup);
+      registerPart('forkArm', forkArmGroup, new THREE.Vector3(-1.3, 0.4, 0));
+
+      // ฐานเชื่อมแขนส้อมทรงโค้ง
+      var forkFoot = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.36, 1.12), matCastGunmetal);
+      forkFoot.position.set(-0.78, 0.88, 0);
+      forkArmGroup.add(attachMesh('forkArm', forkFoot));
+
+      // ตัวแขนส้อมทรงโค้งมนลบมุมด้วย ExtrudeGeometry
+      var armShape = new THREE.Shape();
+      armShape.moveTo(-0.56, 0.72);
+      armShape.lineTo(0.56, 0.72);
+      armShape.lineTo(0.48, ALT_PIVOT_Y);
+      armShape.absarc(0, ALT_PIVOT_Y, 0.48, 0, Math.PI, false);
+      armShape.lineTo(-0.56, 0.72);
+      armShape.closePath();
+
+      var armGeo = new THREE.ExtrudeGeometry(armShape, {
+        depth: 0.46,
+        bevelEnabled: true,
+        bevelThickness: 0.06,
+        bevelSize: 0.06,
+        bevelSegments: 3
+      });
+      armGeo.rotateY(Math.PI / 2);
+      var armMesh = new THREE.Mesh(armGeo, matCastGunmetal);
+      armMesh.position.set(FORK_X - 0.23, 0, 0);
+      forkArmGroup.add(attachMesh('forkArm', armMesh));
+
+      // แผ่นตกแต่งสีส้มเมทัลลิกด้านนอกแขนส้อม
+      var armBadge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.45, 0.46), matOrangeTrim);
+      armBadge.position.set(FORK_X - 0.28, 1.78, 0);
+      forkArmGroup.add(attachMesh('forkArm', armBadge));
+
+      // ดุมแกนหมุนเงยและคลัตช์มอเตอร์
+      var altHub = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.62, 0.34, 36), matAnodizedBlack);
+      altHub.rotation.z = Math.PI / 2;
+      altHub.position.set(FORK_X + 0.30, ALT_PIVOT_Y, 0);
+      forkArmGroup.add(attachMesh('forkArm', altHub));
+
+      var altHubTrim = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.04, 12, 32), matOrangeTrim);
+      altHubTrim.rotation.y = Math.PI / 2;
+      altHubTrim.position.set(FORK_X - 0.28, ALT_PIVOT_Y, 0);
+      forkArmGroup.add(attachMesh('forkArm', altHubTrim));
+
+      // แคลมป์จับรางประกบ Vixen + ลูกบิดล็อกสีส้ม
+      var dovetailClamp = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.56, 1.25), matAnodizedBlack);
+      dovetailClamp.position.set(FORK_X + 0.52, ALT_PIVOT_Y, 0);
+      forkArmGroup.add(attachMesh('forkArm', dovetailClamp));
+
+      var clampKnob = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.22, 18), matOrangeTrim);
+      clampKnob.position.set(FORK_X + 0.52, ALT_PIVOT_Y - 0.36, 0.28);
+      forkArmGroup.add(attachMesh('forkArm', clampKnob));
+
+      // -------------------------------------------------------------------------
+      // 5.4 รีโมทควบคุม GoTo ทรงโค้งมน + จอ LCD แดง + สายไฟขดเกลียว (handControllerGroup)
+      // -------------------------------------------------------------------------
+      var handControllerGroup = new THREE.Group();
+      handControllerGroup.position.set(FORK_X - 0.38, 1.75, 0.10);
+      handControllerGroup.rotation.y = -Math.PI / 2;
+      azGroup.add(handControllerGroup);
+      registerPart('handController', handControllerGroup, new THREE.Vector3(-2.4, 0.4, 0));
+
+      // ตัวเรือนรีโมททรงลบมุม
+      var hcShape = new THREE.Shape();
+      hcShape.moveTo(-0.24, -0.52);
+      hcShape.lineTo(0.24, -0.52);
+      hcShape.quadraticCurveTo(0.32, -0.52, 0.32, -0.44);
+      hcShape.lineTo(0.35, 0.44);
+      hcShape.quadraticCurveTo(0.35, 0.54, 0.25, 0.54);
+      hcShape.lineTo(-0.25, 0.54);
+      hcShape.quadraticCurveTo(-0.35, 0.54, -0.35, 0.44);
+      hcShape.lineTo(-0.32, -0.44);
+      hcShape.quadraticCurveTo(-0.32, -0.52, -0.24, -0.52);
+      var hcGeo = new THREE.ExtrudeGeometry(hcShape, { depth: 0.14, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 2 });
+      var hcBody = new THREE.Mesh(hcGeo, matAnodizedBlack);
+      hcBody.position.z = -0.07;
+      handControllerGroup.add(attachMesh('handController', hcBody));
+
+      // หน้าจอ LCD สีแดงเรืองแสง
+      var hcLcd = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.50, 0.23),
+        new THREE.MeshBasicMaterial({ map: lcdTex })
+      );
+      hcLcd.position.set(0, 0.32, 0.105);
+      handControllerGroup.add(attachMesh('handController', hcLcd, false, false));
+
+      // ปุ่มกดเรืองแสงสีแดง 4×3
+      for (var row = 0; row < 4; row++) {
+        for (var col = 0; col < 3; col++) {
+          var key = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.065, 0.035), matRedButton);
+          key.position.set((col - 1) * 0.16, 0.08 - row * 0.135, 0.10);
+          handControllerGroup.add(attachMesh('handController', key, false, false));
+        }
+      }
+
+      // สายไฟขดเกลียวสีดำเชื่อมจากตูดรีโมทเข้าพอร์ตบนแขนส้อม
+      var coilPts = [];
+      for (var cp = 0; cp <= 48; cp++) {
+        var u = cp / 48;
+        var angC = u * Math.PI * 16;
+        var cx = Math.cos(angC) * 0.065;
+        var cy = -0.54 - Math.sin(u * Math.PI) * 0.42 - u * 0.25;
+        var cz = -0.02 - u * 0.28 + Math.sin(angC) * 0.065;
+        coilPts.push(new THREE.Vector3(cx, cy, cz));
+      }
+      var coilCurve = new THREE.CatmullRomCurve3(coilPts);
+      var coilMesh = new THREE.Mesh(new THREE.TubeGeometry(coilCurve, 72, 0.022, 8, false), matRubber);
+      handControllerGroup.add(attachMesh('handController', coilMesh));
+
+      // -------------------------------------------------------------------------
+      // 5.5 กลุ่มหมุนมุมเงย (altGroup) — ศูนย์กลางที่ (0, ALT_PIVOT_Y, 0)
+      // local +Z = หน้ากล้อง (แผ่นปรับแก้), local -Z = ท้ายกล้อง (ช่องมอง/กระจกเบี่ยงแสง)
+      // -------------------------------------------------------------------------
+      var altGroup = new THREE.Group();
+      altGroup.position.set(0, ALT_PIVOT_Y, 0);
+      azGroup.add(altGroup);
+
+      var TUBE_R = 1.08;     // ~216mm outer (for 203mm / 8" mirror)
+      var TUBE_R_IN = 1.02;
+      var TUBE_LEN = 4.25;   // ท่อสั้นกะทัดรัดสมจริง (~43 ซม.)
+      var Z_FRONT = 2.15;
+      var Z_REAR = -2.10;
+      var PRIMARY_Z = -1.72;
+
+      // 5.5.1 ท่อกล้องส้มเมทัลลิกเงา + รางประกบข้าง (otaGroup)
+      var otaGroup = new THREE.Group();
+      altGroup.add(otaGroup);
+      registerPart('ota', otaGroup, new THREE.Vector3(0, 1.4, 0));
+
+      var tubeOuterGeo = new THREE.CylinderGeometry(TUBE_R, TUBE_R, TUBE_LEN, 56, 1, true);
+      tubeOuterGeo.rotateY(Math.PI / 2);
+      tubeOuterGeo.rotateX(Math.PI / 2);
+      var tubeOuter = new THREE.Mesh(tubeOuterGeo, matOrangeMetallic);
+      tubeOuter.userData.isTubeShell = true;
+      otaGroup.add(attachMesh('ota', tubeOuter));
+
+      var tubeInnerGeo = new THREE.CylinderGeometry(TUBE_R_IN, TUBE_R_IN, TUBE_LEN, 56, 1, true);
+      tubeInnerGeo.rotateX(Math.PI / 2);
+      var tubeInner = new THREE.Mesh(tubeInnerGeo, matTubeInner);
+      tubeInner.userData.isTubeShell = true;
+      otaGroup.add(attachMesh('ota', tubeInner, false, false));
+
+      // วงแหวนหน้าท่อพร้อมตัวหนังสือโค้งรอบขอบ
+      var frontCollar = new THREE.Mesh(new THREE.CylinderGeometry(TUBE_R + 0.07, TUBE_R + 0.05, 0.34, 56, 1, true), matAnodizedBlack);
+      frontCollar.rotation.x = Math.PI / 2;
+      frontCollar.position.z = Z_FRONT;
+      otaGroup.add(attachMesh('ota', frontCollar));
+
+      var frontFaceRing = new THREE.Mesh(
+        new THREE.RingGeometry(TUBE_R_IN - 0.02, TUBE_R + 0.06, 56),
+        new THREE.MeshStandardMaterial({ map: frontRingTex, roughness: 0.4, metalness: 0.5, side: THREE.DoubleSide })
+      );
+      frontFaceRing.position.z = Z_FRONT + 0.16;
+      otaGroup.add(attachMesh('ota', frontFaceRing, false, false));
+
+      // รางประกบ Vixen ยึดด้านซ้าย (-X) เข้ากับแขนส้อม
+      var otaDovetail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.34, 2.35), matOrangeTrim);
+      otaDovetail.position.set(-(TUBE_R + 0.06), 0, 0);
+      otaGroup.add(attachMesh('ota', otaDovetail));
+
+      // 5.5.2 ท้ายท่อหล่อแบบมีสันนูน 12 ซี่ + น็อต 8 ตัว + ช่องมองหลังกล้อง (visualBackGroup)
+      var visualBackGroup = new THREE.Group();
+      visualBackGroup.position.z = Z_REAR;
+      altGroup.add(visualBackGroup);
+      registerPart('visualBack', visualBackGroup, new THREE.Vector3(0, 1.4, -1.5));
+
+      var rearRing = new THREE.Mesh(new THREE.CylinderGeometry(TUBE_R + 0.06, TUBE_R + 0.04, 0.42, 56), matCastGunmetal);
+      rearRing.rotation.x = Math.PI / 2;
+      visualBackGroup.add(attachMesh('visualBack', rearRing));
+
+      var rearCap = new THREE.Mesh(new THREE.CylinderGeometry(TUBE_R + 0.02, TUBE_R + 0.04, 0.18, 48), matCastGunmetal);
+      rearCap.rotation.x = Math.PI / 2;
+      rearCap.position.z = -0.22;
+      visualBackGroup.add(attachMesh('visualBack', rearCap));
+
+      // สันนูนเสริมความแข็งแรง 12 ซี่รอบท้ายท่อ
+      for (var ri = 0; ri < 12; ri++) {
+        var rAng = (ri / 12) * Math.PI * 2;
+        var rib = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.56, 0.12), matAnodizedBlack);
+        rib.position.set(Math.cos(rAng) * 0.72, Math.sin(rAng) * 0.72, -0.30);
+        rib.rotation.z = rAng + Math.PI / 2;
+        visualBackGroup.add(attachMesh('visualBack', rib));
+      }
+
+      // น็อตหกเหลี่ยมสเตนเลส 8 ตัวรอบขอบท้ายท่อ
+      for (var bi = 0; bi < 8; bi++) {
+        var bAng = (bi / 8) * Math.PI * 2;
+        var hexBolt = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.07, 6), matStainless);
+        hexBolt.rotation.x = Math.PI / 2;
+        hexBolt.position.set(Math.cos(bAng) * (TUBE_R - 0.05), Math.sin(bAng) * (TUBE_R - 0.05), -0.32);
+        visualBackGroup.add(attachMesh('visualBack', hexBolt));
+      }
+
+      // ข้อต่อช่องมองหลังกล้อง (Visual Back)
+      var vbCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.44, 32), matAnodizedBlack);
+      vbCollar.rotation.x = Math.PI / 2;
+      vbCollar.position.z = -0.46;
+      visualBackGroup.add(attachMesh('visualBack', vbCollar));
+
+      var vbThumb = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.18, 12), matBrass);
+      vbThumb.position.set(0.36, 0.10, -0.54);
+      vbThumb.rotation.z = -Math.PI / 2;
+      visualBackGroup.add(attachMesh('visualBack', vbThumb));
+
+      // 5.5.3 ปุ่มปรับโฟกัสเลื่อนกระจกปฐมภูมิ (focusKnobGroup)
+      var focusKnobGroup = new THREE.Group();
+      focusKnobGroup.position.set(0.56, -0.44, Z_REAR - 0.36);
+      altGroup.add(focusKnobGroup);
+      registerPart('focusKnob', focusKnobGroup, new THREE.Vector3(0.8, 0.6, -1.8));
+
+      var fkPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.22, 0.08, 24), matBrass);
+      fkPlate.rotation.x = Math.PI / 2;
+      fkPlate.position.z = 0.04;
+      focusKnobGroup.add(attachMesh('focusKnob', fkPlate));
+
+      var fkShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.26, 20), matBrass);
+      fkShaft.rotation.x = Math.PI / 2;
+      fkShaft.position.z = -0.10;
+      focusKnobGroup.add(attachMesh('focusKnob', fkShaft));
+
+      var fkGrip = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.14, 0.36, 24), matRubber);
+      fkGrip.rotation.x = Math.PI / 2;
+      fkGrip.position.z = -0.34;
+      focusKnobGroup.add(attachMesh('focusKnob', fkGrip));
+
+      var fkRing = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.02, 10, 24), matOrangeTrim);
+      fkRing.position.z = -0.48;
+      focusKnobGroup.add(attachMesh('focusKnob', fkRing));
+
+      // 5.5.4 แผ่นปรับแก้ชมิดต์ / เลนส์เมนิสคัส (correctorGroup)
+      var correctorGroup = new THREE.Group();
+      correctorGroup.position.z = Z_FRONT;
+      altGroup.add(correctorGroup);
+      registerPart('corrector', correctorGroup, new THREE.Vector3(0, 1.4, 2.2));
+
+      // แบบ SCT: แผ่นแก้วชมิดต์บาง
+      var sctPlateMesh = new THREE.Mesh(new THREE.CylinderGeometry(TUBE_R_IN - 0.01, TUBE_R_IN - 0.01, 0.05, 48), matCorrectorGlass);
+      sctPlateMesh.rotation.x = Math.PI / 2;
+      correctorGroup.add(attachMesh('corrector', sctPlateMesh, false, false));
+
+      // แบบ MAK: เลนส์เมนิสคัสโค้งหนา (สร้างด้วย LatheGeometry)
+      var makPts = [];
+      for (var mi = 0; mi <= 16; mi++) {
+        var mr = (mi / 16) * (TUBE_R_IN - 0.02);
+        var mz = -0.22 * (1 - (mr * mr) / (TUBE_R_IN * TUBE_R_IN));
+        makPts.push(new THREE.Vector2(mr, mz));
+      }
+      for (var mi2 = 16; mi2 >= 0; mi2--) {
+        var mr2 = (mi2 / 16) * (TUBE_R_IN - 0.02);
+        var mz2 = -0.22 * (1 - (mr2 * mr2) / (TUBE_R_IN * TUBE_R_IN)) + 0.14;
+        makPts.push(new THREE.Vector2(mr2, mz2));
+      }
+      var makGeo = new THREE.LatheGeometry(makPts, 48);
+      makGeo.rotateX(Math.PI / 2);
+      var makLensMesh = new THREE.Mesh(makGeo, matMeniscusGlass);
+      makLensMesh.visible = false;
+      correctorGroup.add(attachMesh('corrector', makLensMesh, false, false));
+
+      // 5.5.5 กระจกทุติยภูมิผิวโค้งนูน (secondaryGroup)
+      var secondaryGroup = new THREE.Group();
+      secondaryGroup.position.z = Z_FRONT - 0.04;
+      altGroup.add(secondaryGroup);
+      registerPart('secondary', secondaryGroup, new THREE.Vector3(0, 1.4, 3.2));
+
+      // โครงเรือนกระจกทุติยภูมิของ SCT (มีสกรูปรับแนว 3 ตัว)
+      var sctSecHousing = new THREE.Group();
+      secondaryGroup.add(sctSecHousing);
+
+      var secCap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.36, 0.24, 32), matAnodizedBlack);
+      secCap.rotation.x = Math.PI / 2;
+      secCap.position.z = 0.08;
+      sctSecHousing.add(attachMesh('secondary', secCap));
+
+      var secBaffleCone = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 0.36, 32, 1, true), matAnodizedBlack);
+      secBaffleCone.rotation.x = Math.PI / 2;
+      secBaffleCone.position.z = -0.18;
+      sctSecHousing.add(attachMesh('secondary', secBaffleCone));
+
+      for (var sc = 0; sc < 3; sc++) {
+        var sa = (sc * Math.PI * 2) / 3;
+        var colScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.08, 12), matStainless);
+        colScrew.rotation.x = Math.PI / 2;
+        colScrew.position.set(Math.cos(sa) * 0.18, Math.sin(sa) * 0.18, 0.21);
+        sctSecHousing.add(attachMesh('secondary', colScrew));
+      }
+
+      // ผิวกระจกโค้งนูนสะท้อนแสง (ใช้ใน SCT)
+      var sctSecMirror = new THREE.Mesh(new THREE.SphereGeometry(0.32, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.32), matMirror);
+      sctSecMirror.rotation.x = -Math.PI / 2;
+      sctSecMirror.scale.set(1, 1, 0.35);
+      sctSecMirror.position.z = -0.05;
+      sctSecHousing.add(attachMesh('secondary', sctSecMirror, false, false));
+
+      // จุดเคลือบอะลูมิเนียมของ MAK (ไม่มีเรือนสีดำ/สกรูปรับแนว)
+      var makSpotMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.04, 36), matMirror);
+      makSpotMesh.rotation.x = Math.PI / 2;
+      makSpotMesh.position.z = -0.18;
+      makSpotMesh.visible = false;
+      secondaryGroup.add(attachMesh('secondary', makSpotMesh, false, false));
+
+      // 5.5.6 กระจกปฐมภูมิทรงกลมมีรูตรงกลาง (primaryGroup) — เลื่อนได้จริงในขั้นที่ 7!
+      var primaryGroup = new THREE.Group();
+      primaryGroup.position.z = PRIMARY_Z;
+      altGroup.add(primaryGroup);
+      registerPart('primary', primaryGroup, new THREE.Vector3(0, 1.4, -0.6));
+
+      var priPts = [];
+      var R_HOLE = 0.28;
+      var R_MIRROR = 0.98;
+      for (var pi = 0; pi <= 16; pi++) {
+        var pr = R_HOLE + (pi / 16) * (R_MIRROR - R_HOLE);
+        var psag = (pr * pr) / 4.2;
+        priPts.push(new THREE.Vector2(pr, psag));
+      }
+      var priFaceGeo = new THREE.LatheGeometry(priPts, 48);
+      priFaceGeo.rotateX(Math.PI / 2);
+      var priFace = new THREE.Mesh(priFaceGeo, matMirror);
+      primaryGroup.add(attachMesh('primary', priFace, false, true));
+
+      var priBack = new THREE.Mesh(new THREE.RingGeometry(R_HOLE, R_MIRROR, 48), matCastGunmetal);
+      priBack.position.z = -0.10;
+      priBack.material.side = THREE.DoubleSide;
+      primaryGroup.add(attachMesh('primary', priBack));
+
+      var priEdge = new THREE.Mesh(new THREE.CylinderGeometry(R_MIRROR, R_MIRROR, 0.16, 48, 1, true), matCastGunmetal);
+      priEdge.rotation.x = Math.PI / 2;
+      priEdge.position.z = -0.02;
+      primaryGroup.add(attachMesh('primary', priEdge));
+
+      // 5.5.7 ท่อบังแสงภายใน (baffleGroup) สวมผ่านรูกลางกระจกปฐมภูมิ
+      var baffleGroup = new THREE.Group();
+      baffleGroup.position.z = PRIMARY_Z + 0.88;
+      altGroup.add(baffleGroup);
+      registerPart('baffle', baffleGroup, new THREE.Vector3(0, 1.4, 0.8));
+
+      var bafflePipe = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 2.05, 32, 1, true), matAnodizedBlack);
+      bafflePipe.rotation.x = Math.PI / 2;
+      baffleGroup.add(attachMesh('baffle', bafflePipe));
+
+      var baffleLip = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.02, 10, 28), matAnodizedBlack);
+      baffleLip.position.z = 1.02;
+      baffleGroup.add(attachMesh('baffle', baffleLip));
+
+      // 5.5.8 กระจกเบี่ยงแสง 90° ทรงลบมุมพร้อมแหวนล็อกทองเหลือง (diagonalGroup)
+      var diagonalGroup = new THREE.Group();
+      diagonalGroup.position.z = Z_REAR - 0.88;
+      altGroup.add(diagonalGroup);
+      registerPart('diagonal', diagonalGroup, new THREE.Vector3(0, 1.4, -2.8));
+
+      var diagNose = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.34, 24), matStainless);
+      diagNose.rotation.x = Math.PI / 2;
+      diagNose.position.z = 0.18;
+      diagonalGroup.add(attachMesh('diagonal', diagNose));
+
+      var diagShape = new THREE.Shape();
+      diagShape.moveTo(-0.22, -0.22);
+      diagShape.lineTo(0.22, -0.22);
+      diagShape.lineTo(0.26, 0.22);
+      diagShape.lineTo(-0.18, 0.26);
+      diagShape.closePath();
+      var diagGeo = new THREE.ExtrudeGeometry(diagShape, { depth: 0.36, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.035, bevelSegments: 2 });
+      diagGeo.rotateY(Math.PI / 2);
+      var diagBody = new THREE.Mesh(diagGeo, matAnodizedBlack);
+      diagBody.position.set(-0.18, 0.02, -0.14);
+      diagonalGroup.add(attachMesh('diagonal', diagBody));
+
+      var diagCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.32, 24), matAnodizedBlack);
+      diagCollar.position.set(0, 0.38, -0.14);
+      diagonalGroup.add(attachMesh('diagonal', diagCollar));
+
+      var diagBrassRing = new THREE.Mesh(new THREE.TorusGeometry(0.235, 0.022, 10, 24), matBrass);
+      diagBrassRing.rotation.x = Math.PI / 2;
+      diagBrassRing.position.set(0, 0.46, -0.14);
+      diagonalGroup.add(attachMesh('diagonal', diagBrassRing));
+
+      // 5.5.9 เลนส์ใกล้ตา Plössl 25mm (eyepieceGroup)
+      var eyepieceGroup = new THREE.Group();
+      eyepieceGroup.position.set(0, 0.70, Z_REAR - 1.02);
+      altGroup.add(eyepieceGroup);
+      registerPart('eyepiece', eyepieceGroup, new THREE.Vector3(0, 2.5, -3.5));
+
+      var epBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.28, 24), matStainless);
+      epBarrel.position.y = -0.10;
+      eyepieceGroup.add(attachMesh('eyepiece', epBarrel));
+
+      var epBody = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.23, 0.48, 28), new THREE.MeshStandardMaterial({ map: epLabelTex, roughness: 0.36, metalness: 0.45 }));
+      epBody.position.y = 0.24;
+      eyepieceGroup.add(attachMesh('eyepiece', epBody));
+
+      // ยางรองตาแบบมีผนังหนาจริง (LatheGeometry) ไม่แหว่งเมื่อมองด้านข้าง
+      var epCupPts = [
+        new THREE.Vector2(0.25, 0.46),
+        new THREE.Vector2(0.245, 0.61),
+        new THREE.Vector2(0.23, 0.635),
+        new THREE.Vector2(0.205, 0.62),
+        new THREE.Vector2(0.185, 0.47)
+      ];
+      var epCup = new THREE.Mesh(new THREE.LatheGeometry(epCupPts, 32), matRubber);
+      eyepieceGroup.add(attachMesh('eyepiece', epCup));
+
+      var epLens = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 24), matLensCoat);
+      epLens.position.y = 0.47;
+      eyepieceGroup.add(attachMesh('eyepiece', epLens, false, false));
+
+      // 5.5.10 กล้องเล็งจุดแดง (StarPointer Red Dot Finder) แนบสนิทผิวท่อกล้องพร้อมกระบอกฮู้ดสมจริง
+      var finderAng = 0.42; // วางเอียงขวาบน ~24° แนบสนิทกับรัศมีท่อ TUBE_R
+      var finderGroup = new THREE.Group();
+      finderGroup.position.set(
+        Math.sin(finderAng) * (TUBE_R - 0.02),
+        Math.cos(finderAng) * (TUBE_R - 0.02),
+        Z_REAR + 0.58
+      );
+      finderGroup.rotation.z = -finderAng;
+      altGroup.add(finderGroup);
+      registerPart('finder', finderGroup, new THREE.Vector3(1.1, 2.3, -0.5));
+
+      // แท่นยึดแนบสนิทผิวท่อกล้อง + ขาค้ำ
+      var rdfBase = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.10, 0.56), matAnodizedBlack);
+      rdfBase.position.y = 0.04;
+      finderGroup.add(attachMesh('finder', rdfBase));
+
+      var rdfStalk = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.30), matAnodizedBlack);
+      rdfStalk.position.y = 0.28;
+      finderGroup.add(attachMesh('finder', rdfStalk));
+
+      // ตัวเรือนหลักด้านล่าง
+      var rdfRail = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 1.02), matCastGunmetal);
+      rdfRail.position.set(0, 0.54, 0.06);
+      finderGroup.add(attachMesh('finder', rdfRail));
+
+      // กระบอกฮู้ดเล็งจุดแดงทรงกระบอกปลายเปิด 2 ด้าน (DoubleSide + ขอบหนาหน้า-หลัง)
+      var rdfBarrelMat = matAnodizedBlack.clone();
+      rdfBarrelMat.side = THREE.DoubleSide;
+      var rdfBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.165, 0.90, 28, 1, true), rdfBarrelMat);
+      rdfBarrel.rotation.x = Math.PI / 2;
+      rdfBarrel.position.set(0, 0.74, 0.08);
+      finderGroup.add(attachMesh('finder', rdfBarrel));
+
+      [0.53, -0.37].forEach(function (bz) {
+        var rim = new THREE.Mesh(new THREE.TorusGeometry(0.165, 0.018, 10, 28), matAnodizedBlack);
+        rim.position.set(0, 0.74, bz);
+        finderGroup.add(attachMesh('finder', rim));
+      });
+
+      // กระจกสะท้อนจุดแดงเอียงเล็กน้อยด้านใน + จุดแสง LED สีแดง
+      var rdfGlass = new THREE.Mesh(new THREE.CircleGeometry(0.15, 24), matCorrectorGlass);
+      rdfGlass.position.set(0, 0.74, 0.40);
+      rdfGlass.rotation.x = -0.18;
+      finderGroup.add(attachMesh('finder', rdfGlass, false, false));
+
+      var rdfLedDot = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), matRedButton);
+      rdfLedDot.position.set(0, 0.74, 0.38);
+      finderGroup.add(attachMesh('finder', rdfLedDot, false, false));
+
+      // ฝารังถ่าน/ปุ่มเปิด-ปิดปรับความสว่างด้านข้าง + ปุ่มปรับแนว 2 แกน
+      var rdfDial = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.08, 20), matOrangeTrim);
+      rdfDial.rotation.z = Math.PI / 2;
+      rdfDial.position.set(0.145, 0.55, -0.14);
+      finderGroup.add(attachMesh('finder', rdfDial));
+
+      var rdfKnobAz = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.09, 14), matBrass);
+      rdfKnobAz.rotation.z = Math.PI / 2;
+      rdfKnobAz.position.set(-0.145, 0.55, 0.30);
+      finderGroup.add(attachMesh('finder', rdfKnobAz));
+
+      var rdfKnobAlt = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.09, 14), matBrass);
+      rdfKnobAlt.position.set(0, 0.43, -0.34);
+      finderGroup.add(attachMesh('finder', rdfKnobAlt));
+
+      // 5.5.11 ฝาปิดและแผ่นกรองแสงอาทิตย์ (solarFilterGroup) สวม/ถอดที่ปากท่อได้
+      var solarFilterGroup = new THREE.Group();
+      solarFilterGroup.position.z = Z_FRONT + 0.15;
+      solarFilterGroup.visible = false;
+      altGroup.add(solarFilterGroup);
+      registerPart('solarFilter', solarFilterGroup, new THREE.Vector3(0, 1.4, 4.4));
+
+      var sfSkirt = new THREE.Mesh(new THREE.CylinderGeometry(TUBE_R + 0.12, TUBE_R + 0.12, 0.36, 48, 1, true), matAnodizedBlack);
+      sfSkirt.rotation.x = Math.PI / 2;
+      sfSkirt.position.z = -0.10;
+      solarFilterGroup.add(attachMesh('solarFilter', sfSkirt));
+
+      var sfBezel = new THREE.Mesh(new THREE.TorusGeometry(TUBE_R + 0.06, 0.075, 12, 48), matAnodizedBlack);
+      sfBezel.position.z = 0.08;
+      solarFilterGroup.add(attachMesh('solarFilter', sfBezel));
+
+      var sfFilm = new THREE.Mesh(new THREE.CylinderGeometry(TUBE_R + 0.02, TUBE_R + 0.02, 0.03, 48), matSolarFilm);
+      sfFilm.rotation.x = Math.PI / 2;
+      sfFilm.position.z = 0.08;
+      solarFilterGroup.add(attachMesh('solarFilter', sfFilm, false, false));
+
+      // =========================================================================
+      // 6. เส้นทางแสงพับ 3 ทบ (Folded Optical Path) + จุดแสงวิ่ง + สลับโหมด SCT/MAK
+      // =========================================================================
+      var lightPathGroup = new THREE.Group();
+      lightPathGroup.visible = false;
+      altGroup.add(lightPathGroup);
+
+      var foldPhotons = [];
+      (function buildFoldedLightPath() {
+        var rIn = 0.72;
+        var zStar = Z_FRONT + 2.2;
+        var zCorr = Z_FRONT;
+        var zPri = PRIMARY_Z + 0.12;
+        var zSec = Z_FRONT - 0.12;
+        var zDiag = Z_REAR - 1.02;
+        var yEye = 1.45;
+
+        var matRay1 = new THREE.LineBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.88 });
+        var matRay2 = new THREE.LineBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.92 });
+        var matRay3 = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.95 });
+        var photonGeo = new THREE.SphereGeometry(0.065, 10, 10);
+        var photonMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+        var angles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+        angles.forEach(function (ang, idx) {
+          var rx = Math.cos(ang) * rIn;
+          var ry = Math.sin(ang) * rIn;
+          var p0 = new THREE.Vector3(rx, ry, zStar);
+          var p1 = new THREE.Vector3(rx, ry, zCorr);
+          var p2 = new THREE.Vector3(rx, ry, zPri);
+          var p3 = new THREE.Vector3(rx * 0.28, ry * 0.28, zSec);
+          var p4 = new THREE.Vector3(rx * 0.06, ry * 0.06, zDiag);
+          var p5 = new THREE.Vector3(0, yEye, zDiag);
+
+          lightPathGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p0, p1, p2]), matRay1));
+          lightPathGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p2, p3]), matRay2));
+          lightPathGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p3, p4, p5]), matRay3));
+
+          var fullPts = [p0, p1, p2, p3, p4, p5];
+          for (var k = 0; k < 2; k++) {
+            var pm = new THREE.Mesh(photonGeo, photonMat);
+            lightPathGroup.add(pm);
+            foldPhotons.push({ mesh: pm, pts: fullPts, t: (idx * 0.16 + k * 0.5) % 1 });
+          }
+        });
+      })();
+
+      function samplePolyline(pts, u) {
+        var total = 0;
+        var segs = [];
+        for (var i = 0; i < pts.length - 1; i++) {
+          var d = pts[i].distanceTo(pts[i + 1]);
+          segs.push(d);
+          total += d;
+        }
+        var target = u * total;
+        for (var j = 0; j < segs.length; j++) {
+          if (target <= segs[j] || j === segs.length - 1) {
+            var f = segs[j] > 0 ? target / segs[j] : 0;
+            return new THREE.Vector3().lerpVectors(pts[j], pts[j + 1], f);
+          }
+          target -= segs[j];
+        }
+        return pts[0].clone();
+      }
+
+      var currentOpticsMode = 'sct';
+      function applyOpticsMode(modeKey) {
+        currentOpticsMode = modeKey;
+        var isMak = modeKey === 'mak';
+
+        sctPlateMesh.visible = !isMak;
+        makLensMesh.visible = isMak;
+        sctSecHousing.visible = !isMak;
+        makSpotMesh.visible = isMak;
+
+        document.querySelectorAll('.optics-btn').forEach(function (b) {
+          var act = b.dataset.optics === modeKey;
+          b.className = act
+            ? 'optics-btn rounded-xl py-1.5 px-2 text-[11px] sm:text-xs font-bold transition bg-orange-500/30 text-orange-100 border border-orange-400/60 truncate'
+            : 'optics-btn rounded-xl py-1.5 px-2 text-[11px] sm:text-xs font-semibold transition text-slate-300 hover:bg-slate-800/80 border border-transparent truncate';
+        });
+        document.getElementById('optics-summary-title').textContent = OPTICS_MODES[modeKey].title;
+        document.getElementById('optics-summary-desc').textContent = OPTICS_MODES[modeKey].desc;
+        updateHandControllerLCD(isMak ? 'MAK 8" GoTo' : 'NexStar 8SE', 'ALT:' + Math.round(targetAltDeg) + '  AZ:' + Math.round(targetAzDeg));
+      }
+
+      // =========================================================================
+      // 7. ระบบควบคุมกล้อง 3D ด้วย PointerEvent แยกนิ้วชัดเจน (ป้องกันกล้องหายเมื่อซูม)
+      // =========================================================================
+      var camState = {
+        theta: -0.78,
+        phi: 1.12,
+        radius: 14.5,
+        target: new THREE.Vector3(0, 6.2, 0),
+        goalTheta: -0.78,
+        goalPhi: 1.12,
+        goalRadius: 14.5,
+        goalTarget: new THREE.Vector3(0, 6.2, 0)
+      };
+
+      function clampCamGoals() {
+        camState.goalPhi = Math.max(0.16, Math.min(Math.PI / 2 - 0.04, camState.goalPhi));
+        camState.goalRadius = Math.max(4.8, Math.min(24.0, camState.goalRadius));
+        camState.goalTarget.x = Math.max(-3.0, Math.min(3.0, camState.goalTarget.x));
+        camState.goalTarget.y = Math.max(1.2, Math.min(10.0, camState.goalTarget.y));
+        camState.goalTarget.z = Math.max(-3.0, Math.min(3.0, camState.goalTarget.z));
+      }
+
+      function updateCameraTransform() {
+        camState.theta += (camState.goalTheta - camState.theta) * 0.14;
+        camState.phi += (camState.goalPhi - camState.phi) * 0.14;
+        camState.radius += (camState.goalRadius - camState.radius) * 0.14;
+        camState.target.lerp(camState.goalTarget, 0.14);
+
+        var sinP = Math.sin(camState.phi);
+        camera.position.set(
+          camState.target.x + camState.radius * sinP * Math.sin(camState.theta),
+          camState.target.y + camState.radius * Math.cos(camState.phi),
+          camState.target.z + camState.radius * sinP * Math.cos(camState.theta)
+        );
+        camera.lookAt(camState.target);
+      }
+
+      var activePointers = new Map();
+      var prevPinchDist = null;
+      var downPos = { x: 0, y: 0 };
+      var wasMultiTouch = false;
+      var pointerMoved = false;
+      var domEl = renderer.domElement;
+
+      domEl.addEventListener('pointerdown', function (e) {
+        if (domEl.setPointerCapture) {
+          try { domEl.setPointerCapture(e.pointerId); } catch (_) {}
+        }
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY, button: e.button });
+        if (activePointers.size === 1) {
+          downPos = { x: e.clientX, y: e.clientY };
+          pointerMoved = false;
+          wasMultiTouch = false;
+          prevPinchDist = null;
+        } else if (activePointers.size === 2) {
+          wasMultiTouch = true;
+          pointerMoved = true;
+          var pts = Array.from(activePointers.values());
+          prevPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        }
+      });
+
+      domEl.addEventListener('pointermove', function (e) {
+        if (activePointers.size === 0 && e.pointerType === 'mouse') {
+          handleHover(e.clientX, e.clientY);
+          return;
+        }
+        if (!activePointers.has(e.pointerId)) return;
+
+        var prev = activePointers.get(e.pointerId);
+        var dx = e.clientX - prev.x;
+        var dy = e.clientY - prev.y;
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY, button: prev.button });
+
+        if (activePointers.size === 1 && !wasMultiTouch) {
+          if (Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 5) pointerMoved = true;
+          if (prev.button === 2 || e.shiftKey) {
+            var panScale = camState.radius * 0.0012;
+            var right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+            camState.goalTarget.addScaledVector(right, -dx * panScale);
+            camState.goalTarget.y += dy * panScale;
+          } else {
+            camState.goalTheta -= dx * 0.0072;
+            camState.goalPhi -= dy * 0.0068;
+          }
+          clampCamGoals();
+        } else if (activePointers.size === 2) {
+          var pts = Array.from(activePointers.values());
+          var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+          if (prevPinchDist && dist > 12) {
+            var ratio = prevPinchDist / dist;
+            camState.goalRadius *= Math.max(0.86, Math.min(1.16, ratio));
+            clampCamGoals();
+          }
+          prevPinchDist = dist;
+        }
+      });
+
+      function onPointerEnd(e) {
+        if (activePointers.has(e.pointerId)) {
+          var isTap = activePointers.size === 1 && !pointerMoved && !wasMultiTouch;
+          activePointers.delete(e.pointerId);
+          if (activePointers.size < 2) prevPinchDist = null;
+          if (activePointers.size === 0) {
+            if (isTap) handleClick(e.clientX, e.clientY);
+            wasMultiTouch = false;
+          }
+        }
+      }
+      domEl.addEventListener('pointerup', onPointerEnd);
+      domEl.addEventListener('pointercancel', onPointerEnd);
+      domEl.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+      domEl.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        camState.goalRadius *= (e.deltaY > 0 ? 1.09 : 0.92);
+        clampCamGoals();
+      }, { passive: false });
+
+      // =========================================================================
+      // 8. สถานะโต้ตอบ: ไฮไลต์ปลอดภัย, แยกชิ้นส่วน, ท่อโปร่งใส, GoTo, แผ่นกรองแสง
+      // =========================================================================
+      var selectedPartId = 'ota';
+      var hoveredPartId = null;
+      var isExploded = false;
+      var isXray = false;
+      var isLightOn = false;
+      var isSolarOn = false;
+
+      var targetAltDeg = 38;
+      var targetAzDeg = 35;
+      var currentAltDeg = 38;
+      var currentAzDeg = 35;
+
+      var raycaster = new THREE.Raycaster();
+      var pointerNDC = new THREE.Vector2();
+      var hoverTooltip = document.getElementById('hover-tooltip');
+      var statusBannerInner = document.getElementById('status-banner-inner');
+
+      function showStatusBanner(html, colorClass) {
+        statusBannerInner.className = 'glass-panel pointer-events-auto rounded-2xl px-4 py-1.5 text-xs sm:text-sm font-medium text-center shadow-xl max-w-md border-amber-400/50 ' + (colorClass || 'text-amber-100');
+        statusBannerInner.innerHTML = html;
+        statusBannerInner.classList.remove('hidden');
+      }
+      function hideStatusBanner() { statusBannerInner.classList.add('hidden'); }
+
+      function pickPart(clientX, clientY) {
+        var rect = domEl.getBoundingClientRect();
+        pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointerNDC, camera);
+        var hits = raycaster.intersectObjects(raycastMeshes, false);
+
+        for (var i = 0; i < hits.length; i++) {
+          var obj = hits[i].object;
+          var vis = true;
+          var p = obj;
+          while (p) { if (!p.visible) { vis = false; break; } p = p.parent; }
+          if (!vis) continue;
+          if (isXray && obj.userData.isTubeShell) continue;
+          if (obj.userData.partId) return obj.userData.partId;
+        }
+        for (var j = 0; j < hits.length; j++) {
+          var o2 = hits[j].object;
+          var vis2 = true;
+          var p2 = o2;
+          while (p2) { if (!p2.visible) { vis2 = false; break; } p2 = p2.parent; }
+          if (vis2 && o2.userData.partId) return o2.userData.partId;
+        }
+        return null;
+      }
+
+      function handleHover(cx, cy) {
+        var pid = pickPart(cx, cy);
+        if (pid !== hoveredPartId) {
+          hoveredPartId = pid;
+          updateHighlights();
+        }
+        if (pid) {
+          var info = PARTS_DATA.find(function (x) { return x.id === pid; });
+          domEl.style.cursor = 'pointer';
+          hoverTooltip.textContent = info ? (info.nameTh + ' (' + info.nameEn + ')') : pid;
+          hoverTooltip.style.left = (cx + 14) + 'px';
+          hoverTooltip.style.top = (cy - 28) + 'px';
+          hoverTooltip.classList.remove('hidden');
+        } else {
+          domEl.style.cursor = 'grab';
+          hoverTooltip.classList.add('hidden');
+        }
+      }
+
+      function handleClick(cx, cy) {
+        var pid = pickPart(cx, cy);
+        if (!pid) return;
+        if (quizState.active) {
+          evaluateQuizAnswer(pid);
+          return;
+        }
+        selectPart(pid, true);
+      }
+
+      function updateHighlights(setupHighlightIds) {
+        Object.keys(clickableParts).forEach(function (key) {
+          var part = clickableParts[key];
+          var isSetupHl = Array.isArray(setupHighlightIds) && setupHighlightIds.indexOf(part.id) !== -1;
+          var isSel = !setupHighlightIds && part.id === selectedPartId;
+          var isHov = part.id === hoveredPartId;
+          part.meshes.forEach(function (m) {
+            if (!m || !m.material || !m.material.emissive) return;
+            if (isSetupHl) {
+              m.material.emissive.setHex(0xf97316);
+              m.material.emissiveIntensity = 0.52;
+            } else if (isSel) {
+              m.material.emissive.setHex(0xea580c);
+              m.material.emissiveIntensity = 0.55;
+            } else if (isHov) {
+              m.material.emissive.setHex(0x38bdf8);
+              m.material.emissiveIntensity = 0.30;
+            } else if (m.userData.origEmissive) {
+              m.material.emissive.copy(m.userData.origEmissive);
+              m.material.emissiveIntensity = m.userData.origEmissiveIntensity || 0;
+            }
+          });
+        });
+      }
+
+      function setXrayMode(on) {
+        isXray = on;
+        clickableParts.ota.meshes.forEach(function (m) {
+          if (m && m.userData.isTubeShell && m.material) {
+            m.material.transparent = on;
+            m.material.opacity = on ? 0.16 : 1.0;
+            m.material.depthWrite = !on;
+            m.material.needsUpdate = true;
+          }
+        });
+        var btn = document.getElementById('btn-xray');
+        btn.classList.toggle('bg-cyan-500/30', on);
+        btn.classList.toggle('border-cyan-400/70', on);
+      }
+
+      function setLightMode(on) {
+        isLightOn = on;
+        lightPathGroup.visible = on;
+        if (on && !isXray) setXrayMode(true);
+        var btn = document.getElementById('btn-light');
+        btn.classList.toggle('bg-amber-500/30', on);
+        btn.classList.toggle('border-amber-400/70', on);
+      }
+
+      function setExplodeMode(on) {
+        isExploded = on;
+        var btn = document.getElementById('btn-explode');
+        btn.classList.toggle('bg-sky-500/30', on);
+        btn.classList.toggle('border-sky-400/70', on);
+      }
+
+      function setSolarMode(on) {
+        isSolarOn = on;
+        solarFilterGroup.visible = on;
+        var btn = document.getElementById('btn-solar');
+        btn.classList.toggle('bg-orange-500/30', on);
+        btn.classList.toggle('border-orange-400/70', on);
+      }
+
+      // =========================================================================
+      // 9. UI แผงข้อมูล 5 แท็บ และเมนูป๊อปอัป GoTo
+      // =========================================================================
+      var infoPanel = document.getElementById('info-panel');
+      var togglePanelLabel = document.getElementById('toggle-panel-label');
+      var panelOpen = window.innerWidth >= 1024;
+
+      function syncPanelVisibility() {
+        if (panelOpen) {
+          infoPanel.classList.remove('hidden');
+          infoPanel.classList.add('flex');
+          togglePanelLabel.textContent = 'ซ่อนแผง';
+        } else {
+          infoPanel.classList.add('hidden');
+          infoPanel.classList.remove('flex');
+          togglePanelLabel.textContent = 'แผงข้อมูล';
+        }
+        setTimeout(onResize, 60);
+      }
+      syncPanelVisibility();
+
+      document.getElementById('btn-toggle-panel').addEventListener('click', function () {
+        panelOpen = !panelOpen;
+        syncPanelVisibility();
+      });
+
+      document.getElementById('btn-fullscreen').addEventListener('click', function () {
+        var doc = document;
+        var el = document.documentElement;
+        if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+          var req = el.requestFullscreen || el.webkitRequestFullscreen;
+          if (req) {
+            Promise.resolve(req.call(el)).catch(function () {
+              panelOpen = false;
+              syncPanelVisibility();
+            });
+          } else {
+            panelOpen = false;
+            syncPanelVisibility();
+          }
+        } else {
+          var exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+          if (exit) exit.call(doc);
+        }
+      });
+
+      var gotoPopover = document.getElementById('goto-popover');
+      document.getElementById('btn-goto').addEventListener('click', function () {
+        gotoPopover.classList.toggle('hidden');
+      });
+      document.getElementById('btn-close-goto').addEventListener('click', function () {
+        gotoPopover.classList.add('hidden');
+      });
+
+      var gotoBannerTimer = null;
+      document.querySelectorAll('.goto-target-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var key = btn.dataset.goto;
+          var t = GOTO_TARGETS[key];
+          if (!t) return;
+          gotoPopover.classList.add('hidden');
+          targetAltDeg = t.alt;
+          targetAzDeg = t.az;
+          syncSlidersUI();
+          updateHandControllerLCD('SLEW: ' + key.toUpperCase(), 'ALT:' + t.alt + '  AZ:' + t.az);
+          if (!quizState.active) {
+            showStatusBanner('🎯 GoTo กำลังนำร่องไปยัง <b>' + t.name + '</b> (Az ' + t.az + '°, Alt ' + t.alt + '°)', 'text-rose-200');
+            if (gotoBannerTimer) clearTimeout(gotoBannerTimer);
+            gotoBannerTimer = setTimeout(function () {
+              if (!quizState.active) hideStatusBanner();
+            }, 4000);
+          }
+        });
+      });
+
+      var currentTab = 'parts';
+      function switchTab(tabName) {
+        currentTab = tabName;
+        document.querySelectorAll('.tab-btn').forEach(function (b) {
+          var active = b.dataset.tab === tabName;
+          b.className = active
+            ? 'tab-btn rounded-xl py-2 px-1 text-[11px] sm:text-xs font-semibold transition bg-orange-500/25 text-orange-200 border border-orange-400/50'
+            : 'tab-btn rounded-xl py-2 px-1 text-[11px] sm:text-xs font-semibold transition text-slate-300 hover:bg-slate-800 border border-transparent';
+        });
+        document.querySelectorAll('.tab-pane').forEach(function (p) {
+          p.classList.toggle('hidden', p.id !== 'tab-' + tabName);
+        });
+
+        if (tabName !== 'setup') {
+          stopSetupAnimation();
+          restoreAllPartsVisible();
+          updateHighlights();
+        } else {
+          applySetupStep(setupState.stepIdx);
+        }
+      }
+      document.querySelectorAll('.tab-btn').forEach(function (b) {
+        b.addEventListener('click', function () { switchTab(b.dataset.tab); });
+      });
+
+      // --- แท็บ 1: ชิ้นส่วน (15 ชิ้น) ---
+      var pillsWrap = document.getElementById('part-pills');
+      PARTS_DATA.forEach(function (p) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.partId = p.id;
+        btn.textContent = p.nameTh;
+        btn.className = 'part-pill px-2.5 py-1 rounded-full text-xs font-medium border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-orange-500/20 transition';
+        btn.addEventListener('click', function () {
+          if (p.id === 'solarFilter' && !isSolarOn) setSolarMode(true);
+          selectPart(p.id, false);
+        });
+        pillsWrap.appendChild(btn);
+      });
+
+      function selectPart(id, openPanelOnMobile) {
+        selectedPartId = id;
+        var info = PARTS_DATA.find(function (x) { return x.id === id; }) || PARTS_DATA[0];
+        document.getElementById('part-name-th').textContent = info.nameTh;
+        document.getElementById('part-name-en').textContent = info.nameEn;
+        document.getElementById('part-role').textContent = info.role;
+        document.getElementById('part-physics').textContent = info.physics;
+        document.getElementById('part-question').textContent = info.question;
+        var ansEl = document.getElementById('part-answer');
+        ansEl.textContent = info.answer;
+        ansEl.classList.add('hidden');
+        document.getElementById('btn-show-answer').textContent = 'ดูแนวคำตอบ';
+
+        document.querySelectorAll('.part-pill').forEach(function (el) {
+          var act = el.dataset.partId === id;
+          el.className = act
+            ? 'part-pill px-2.5 py-1 rounded-full text-xs font-bold border border-orange-400 bg-orange-500/30 text-orange-100 transition'
+            : 'part-pill px-2.5 py-1 rounded-full text-xs font-medium border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-orange-500/20 transition';
+        });
+
+        updateHighlights();
+        if (openPanelOnMobile) {
+          if (!panelOpen) { panelOpen = true; syncPanelVisibility(); }
+          if (currentTab !== 'parts') switchTab('parts');
+        }
+      }
+
+      document.getElementById('btn-show-answer').addEventListener('click', function () {
+        var ansEl = document.getElementById('part-answer');
+        var hidden = ansEl.classList.toggle('hidden');
+        document.getElementById('btn-show-answer').textContent = hidden ? 'ดูแนวคำตอบ' : 'ซ่อนแนวคำตอบ';
+      });
+      selectPart('ota', false);
+
+      // --- แท็บ 2: แอนิเมชั่นการติดตั้งและใช้งาน 8 ขั้นตอน ---
+      var setupState = { stepIdx: 0, playing: false, speed: 1, timer: 0, phase: 0 };
+
+      var setupStepListEl = document.getElementById('setup-step-list');
+      SETUP_STEPS.forEach(function (st, idx) {
+        var item = document.createElement('button');
+        item.type = 'button';
+        item.dataset.step = idx;
+        item.className = 'setup-item w-full text-left rounded-xl px-3 py-2 text-xs font-medium border border-slate-800 bg-slate-900/60 text-slate-300 hover:bg-slate-800 transition';
+        item.textContent = st.title;
+        item.addEventListener('click', function () {
+          setupState.timer = 0;
+          setupState.phase = 0;
+          applySetupStep(idx);
+        });
+        setupStepListEl.appendChild(item);
+      });
+
+      function restoreAllPartsVisible() {
+        Object.keys(clickableParts).forEach(function (k) {
+          if (k === 'solarFilter') clickableParts[k].group.visible = isSolarOn;
+          else clickableParts[k].group.visible = true;
+        });
+        clickableParts.primary.basePos.z = PRIMARY_Z;
+        clickableParts.solarFilter.basePos.z = Z_FRONT + 0.15;
+      }
+
+      function syncSlidersUI() {
+        document.getElementById('slider-alt').value = Math.round(targetAltDeg);
+        document.getElementById('val-alt').textContent = Math.round(targetAltDeg) + '°';
+        document.getElementById('slider-az').value = Math.round(targetAzDeg);
+        document.getElementById('val-az').textContent = Math.round(targetAzDeg) + '°';
+      }
+
+      function applySetupStep(idx) {
+        setupState.stepIdx = Math.max(0, Math.min(SETUP_STEPS.length - 1, idx));
+        setupState.phase = 0;
+        var st = SETUP_STEPS[setupState.stepIdx];
+
+        document.getElementById('setup-step-badge').textContent = 'ขั้นที่ ' + (setupState.stepIdx + 1) + ' / ' + SETUP_STEPS.length;
+        document.getElementById('setup-progress-bar').style.width = (((setupState.stepIdx + 1) / SETUP_STEPS.length) * 100) + '%';
+        document.getElementById('setup-step-title').textContent = st.title;
+        document.getElementById('setup-step-desc').textContent = st.desc;
+        document.getElementById('setup-step-tip').textContent = st.tip;
+
+        document.querySelectorAll('.setup-item').forEach(function (el, i) {
+          var act = i === setupState.stepIdx;
+          el.className = act
+            ? 'setup-item w-full text-left rounded-xl px-3 py-2 text-xs font-bold border border-orange-400/60 bg-orange-500/20 text-orange-100 transition'
+            : 'setup-item w-full text-left rounded-xl px-3 py-2 text-xs font-medium border border-slate-800 bg-slate-900/60 text-slate-300 hover:bg-slate-800 transition';
+        });
+
+        Object.keys(clickableParts).forEach(function (k) {
+          clickableParts[k].group.visible = (st.visible === 'all' || st.visible.indexOf(k) !== -1);
+        });
+
+        setExplodeMode(false);
+        setLightMode(st.light);
+        setXrayMode(st.xray);
+        setSolarMode(st.solar);
+
+        clickableParts.primary.basePos.z = PRIMARY_Z;
+        clickableParts.solarFilter.basePos.z = st.solar ? (Z_FRONT + 1.8) : (Z_FRONT + 0.15);
+
+        targetAltDeg = st.alt;
+        targetAzDeg = st.az;
+        syncSlidersUI();
+
+        if (setupState.stepIdx === 4) updateHandControllerLCD('SET TIME/GPS', '18.1N  100.1E');
+        else if (setupState.stepIdx === 5) updateHandControllerLCD('2-STAR ALIGN', 'SIRIUS -> VEGA');
+        else if (setupState.stepIdx === 6) updateHandControllerLCD('GOTO SATURN', 'ALT:56  AZ:212');
+        else updateHandControllerLCD(currentOpticsMode.toUpperCase() + ' 8" GoTo', 'ALT:' + st.alt + '  AZ:' + st.az);
+
+        camState.goalTheta = st.cam.theta;
+        camState.goalPhi = st.cam.phi;
+        camState.goalRadius = st.cam.radius;
+        camState.goalTarget.set(0, st.cam.targetY, 0);
+        clampCamGoals();
+
+        updateHighlights(st.highlight);
+      }
+
+      function stopSetupAnimation() {
+        setupState.playing = false;
+        document.getElementById('btn-setup-play').textContent = '▶ เล่นอนิเมชั่น';
+      }
+
+      document.getElementById('btn-setup-play').addEventListener('click', function () {
+        setupState.playing = !setupState.playing;
+        if (setupState.playing) {
+          if (setupState.stepIdx >= SETUP_STEPS.length - 1) applySetupStep(0);
+          setupState.timer = 0;
+          document.getElementById('btn-setup-play').textContent = '⏸ หยุดชั่วคราว';
+        } else {
+          document.getElementById('btn-setup-play').textContent = '▶ เล่นอนิเมชั่น';
+        }
+      });
+
+      document.getElementById('btn-setup-prev').addEventListener('click', function () {
+        setupState.timer = 0;
+        applySetupStep(setupState.stepIdx - 1);
+      });
+
+      document.getElementById('btn-setup-next').addEventListener('click', function () {
+        setupState.timer = 0;
+        applySetupStep(setupState.stepIdx + 1);
+      });
+
+      document.querySelectorAll('.speed-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          setupState.speed = parseFloat(btn.dataset.speed);
+          document.querySelectorAll('.speed-btn').forEach(function (b) {
+            var act = b === btn;
+            b.className = act
+              ? 'speed-btn px-2 py-1 rounded-lg text-xs font-semibold bg-orange-500/30 text-orange-200 border border-orange-400/50'
+              : 'speed-btn px-2 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700';
+          });
+        });
+      });
+
+      // --- แท็บ 3: เกมหาชิ้นส่วน 10 ข้อ ---
+      var quizState = { active: false, questions: [], idx: 0, score: 0, locked: false };
+
+      function startQuiz() {
+        var shuffled = PARTS_DATA.slice().sort(function () { return Math.random() - 0.5; }).slice(0, 10);
+        quizState.active = true;
+        quizState.questions = shuffled;
+        quizState.idx = 0;
+        quizState.score = 0;
+        quizState.locked = false;
+
+        document.getElementById('quiz-idle').classList.add('hidden');
+        document.getElementById('quiz-summary').classList.add('hidden');
+        document.getElementById('quiz-active').classList.remove('hidden');
+        document.getElementById('quiz-score-badge').textContent = 'คะแนน: 0 / 10';
+        renderQuizQuestion();
+      }
+
+      function renderQuizQuestion() {
+        var q = quizState.questions[quizState.idx];
+        if (q.id === 'solarFilter' && !isSolarOn) setSolarMode(true);
+        document.getElementById('quiz-q-num').textContent = 'ข้อที่ ' + (quizState.idx + 1) + ' / 10';
+        document.getElementById('quiz-target-name').textContent = q.nameTh;
+        document.getElementById('quiz-target-en').textContent = q.nameEn;
+        document.getElementById('quiz-hint-text').classList.add('hidden');
+        document.getElementById('quiz-feedback').classList.add('hidden');
+        showStatusBanner('🎯 ข้อ ' + (quizState.idx + 1) + '/10: คลิกหา <b>' + q.nameTh + '</b>');
+      }
+
+      function evaluateQuizAnswer(clickedId) {
+        if (!quizState.active || quizState.locked) return;
+        quizState.locked = true;
+        var target = quizState.questions[quizState.idx];
+        var clicked = PARTS_DATA.find(function (x) { return x.id === clickedId; });
+        var fb = document.getElementById('quiz-feedback');
+        fb.classList.remove('hidden');
+
+        if (clickedId === target.id) {
+          quizState.score++;
+          document.getElementById('quiz-score-badge').textContent = 'คะแนน: ' + quizState.score + ' / 10';
+          fb.className = 'rounded-xl p-2.5 text-xs sm:text-sm font-semibold text-center bg-emerald-500/25 text-emerald-200 border border-emerald-400/50';
+          fb.textContent = '✅ ถูกต้อง! นั่นคือ "' + target.nameTh + '"';
+          showStatusBanner('✅ ถูกต้อง! ' + target.nameTh, 'text-emerald-300');
+        } else {
+          fb.className = 'rounded-xl p-2.5 text-xs sm:text-sm font-semibold text-center bg-rose-500/25 text-rose-200 border border-rose-400/50';
+          fb.textContent = '❌ ยังไม่ถูก (คุณคลิก: ' + (clicked ? clicked.nameTh : clickedId) + ') — เฉลย: ' + target.nameTh;
+          showStatusBanner('❌ คุณคลิก "' + (clicked ? clicked.nameTh : '') + '" — เฉลยคือ "' + target.nameTh + '"', 'text-rose-300');
+        }
+
+        updateHighlights([target.id]);
+
+        setTimeout(function () {
+          quizState.idx++;
+          quizState.locked = false;
+          updateHighlights();
+          if (quizState.idx >= quizState.questions.length) finishQuiz();
+          else renderQuizQuestion();
+        }, 1450);
+      }
+
+      function finishQuiz() {
+        quizState.active = false;
+        hideStatusBanner();
+        document.getElementById('quiz-active').classList.add('hidden');
+        document.getElementById('quiz-summary').classList.remove('hidden');
+        document.getElementById('quiz-final-score').textContent = quizState.score + ' / 10 คะแนน';
+
+        var medal = '🔭';
+        var msg = 'ลองทบทวนชิ้นส่วนและเล่นใหม่อีกครั้งนะครับ';
+        if (quizState.score >= 9) { medal = '🏆'; msg = 'ยอดเยี่ยมมาก! คุณเข้าใจโครงสร้างกล้องแบบผสมและระบบ GoTo อย่างถ่องแท้'; }
+        else if (quizState.score >= 7) { medal = '🌟'; msg = 'เก่งมาก! แม่นยำเกือบทุกชิ้นส่วนแล้ว'; }
+        else if (quizState.score >= 5) { medal = '👍'; msg = 'ทำได้ดี ลองเปิดท่อโปร่งใสดูโครงสร้างด้านในเพิ่มเติมนะ'; }
+        document.getElementById('quiz-medal').textContent = medal;
+        document.getElementById('quiz-final-msg').textContent = msg;
+      }
+
+      document.getElementById('btn-start-quiz').addEventListener('click', startQuiz);
+      document.getElementById('btn-restart-quiz').addEventListener('click', startQuiz);
+      document.getElementById('btn-quit-quiz').addEventListener('click', function () {
+        quizState.active = false;
+        hideStatusBanner();
+        document.getElementById('quiz-active').classList.add('hidden');
+        document.getElementById('quiz-idle').classList.remove('hidden');
+      });
+      document.getElementById('btn-quiz-hint').addEventListener('click', function () {
+        var q = quizState.questions[quizState.idx];
+        var hintEl = document.getElementById('quiz-hint-text');
+        hintEl.textContent = '💡 คำใบ้: ' + q.role;
+        hintEl.classList.remove('hidden');
+      });
+
+      // --- แท็บ 4: เครื่องคำนวณทัศนศาสตร์ ---
+      function updateCalculator() {
+        var D = Math.max(10, parseFloat(document.getElementById('calc-D').value) || 203);
+        var F = Math.max(50, parseFloat(document.getElementById('calc-F').value) || 2032);
+        var fe = Math.max(1, parseFloat(document.getElementById('calc-fe').value) || 25);
+        var afov = Math.max(10, parseFloat(document.getElementById('calc-afov').value) || 52);
+
+        var M = F / fe;
+        var fRatio = F / D;
+        var lgp = Math.pow(D / 7, 2);
+        var dawes = 116 / D;
+        var exitPupil = D / M;
+        var tfov = afov / M;
+
+        document.getElementById('res-mag').textContent = M.toFixed(1) + '×';
+        document.getElementById('res-fratio').textContent = 'f/' + fRatio.toFixed(1);
+        document.getElementById('res-lgp').textContent = Math.round(lgp).toLocaleString('th-TH') + ' เท่า';
+        document.getElementById('res-res').textContent = dawes.toFixed(2) + '"';
+        document.getElementById('res-exit').textContent = exitPupil.toFixed(2) + ' mm';
+        document.getElementById('res-tfov').textContent = tfov.toFixed(2) + '° (' + (tfov * 60).toFixed(0) + '\')';
+
+        var note = '';
+        if (exitPupil > 7) note = '⚠️ Exit Pupil ใหญ่กว่า 7 มม. แสงบางส่วนจะล้นรูม่านตา ควรใช้เลนส์ใกล้ตาที่โฟกัสสั้นลง';
+        else if (exitPupil < 0.5) note = '⚠️ กำลังขยายสูงเกินขีดจำกัดการเลี้ยวเบนของกล้อง (Exit Pupil < 0.5 มม.) ภาพจะมืดและไม่คมชัดขึ้น';
+        else if (exitPupil >= 2.2) note = '✅ เหมาะสำหรับสังเกตกระจุกดาวทรงกลม เนบิวลาสว่าง และดวงจันทร์เต็มดวง';
+        else note = '✅ กำลังขยายสูงยอดเยี่ยมสำหรับสังเกตวงแหวนดาวเสาร์ จุดแดงใหญ่ดาวพฤหัสบดี และหลุมอุกกาบาตบนดวงจันทร์';
+        document.getElementById('calc-note').textContent = note;
+      }
+
+      ['calc-D', 'calc-F', 'calc-fe', 'calc-afov'].forEach(function (id) {
+        document.getElementById(id).addEventListener('input', updateCalculator);
+      });
+      document.querySelectorAll('.ep-preset').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          document.getElementById('calc-fe').value = btn.dataset.ep;
+          updateCalculator();
+        });
+      });
+      updateCalculator();
+
+      // --- แท็บ 5: หลักฟิสิกส์ 8 หัวข้อ ---
+      var physWrap = document.getElementById('physics-list');
+      PHYSICS_TOPICS.forEach(function (pt) {
+        var card = document.createElement('div');
+        card.className = 'rounded-2xl bg-slate-900/80 border border-slate-700/70 p-3 space-y-1.5';
+        card.innerHTML =
+          '<h3 class="text-xs sm:text-sm font-bold text-orange-200">' + pt.title + '</h3>' +
+          '<div class="inline-block px-2.5 py-0.5 rounded-lg bg-indigo-950/80 border border-indigo-400/30 text-xs font-mono text-amber-300">' + pt.formula + '</div>' +
+          '<p class="text-xs sm:text-sm text-slate-300 leading-relaxed">' + pt.body + '</p>';
+        physWrap.appendChild(card);
+      });
+
+      // --- ปุ่มแถบควบคุมด้านล่าง ---
+      document.querySelectorAll('.optics-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () { applyOpticsMode(btn.dataset.optics); });
+      });
+
+      document.getElementById('slider-alt').addEventListener('input', function (e) {
+        targetAltDeg = parseFloat(e.target.value);
+        document.getElementById('val-alt').textContent = targetAltDeg + '°';
+        updateHandControllerLCD(currentOpticsMode.toUpperCase() + ' 8" GoTo', 'ALT:' + Math.round(targetAltDeg) + '  AZ:' + Math.round(targetAzDeg));
+      });
+      document.getElementById('slider-az').addEventListener('input', function (e) {
+        targetAzDeg = parseFloat(e.target.value);
+        document.getElementById('val-az').textContent = targetAzDeg + '°';
+        updateHandControllerLCD(currentOpticsMode.toUpperCase() + ' 8" GoTo', 'ALT:' + Math.round(targetAltDeg) + '  AZ:' + Math.round(targetAzDeg));
+      });
+
+      document.getElementById('btn-explode').addEventListener('click', function () { setExplodeMode(!isExploded); });
+      document.getElementById('btn-light').addEventListener('click', function () { setLightMode(!isLightOn); });
+      document.getElementById('btn-xray').addEventListener('click', function () { setXrayMode(!isXray); });
+      document.getElementById('btn-solar').addEventListener('click', function () { setSolarMode(!isSolarOn); });
+
+      document.getElementById('btn-zoom-in').addEventListener('click', function () {
+        camState.goalRadius *= 0.84;
+        clampCamGoals();
+      });
+      document.getElementById('btn-zoom-out').addEventListener('click', function () {
+        camState.goalRadius *= 1.18;
+        clampCamGoals();
+      });
+      document.getElementById('btn-reset').addEventListener('click', function () {
+        stopSetupAnimation();
+        gotoPopover.classList.add('hidden');
+        setExplodeMode(false);
+        setLightMode(false);
+        setXrayMode(false);
+        setSolarMode(false);
+        applyOpticsMode('sct');
+        restoreAllPartsVisible();
+        targetAltDeg = 38;
+        targetAzDeg = 35;
+        syncSlidersUI();
+        camState.goalTheta = -0.78;
+        camState.goalPhi = 1.12;
+        camState.goalRadius = 14.5;
+        camState.goalTarget.set(0, 6.2, 0);
+        clampCamGoals();
+        updateHighlights();
+      });
+
+      applyOpticsMode('sct');
+
+      // =========================================================================
+      // 10. Resize และ Animation Loop
+      // =========================================================================
+      function onResize() {
+        var w = container.clientWidth;
+        var h = container.clientHeight;
+        if (w <= 0 || h <= 0) return;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      }
+      window.addEventListener('resize', onResize);
+
+      var clock = new THREE.Clock();
+
+      function animate() {
+        requestAnimationFrame(animate);
+        var dt = Math.min(clock.getDelta(), 0.05);
+
+        // เคลื่อนที่มอเตอร์มุมเงยและมุมทิศอย่างนุ่มนวล
+        var dAz = ((targetAzDeg - currentAzDeg + 540) % 360) - 180;
+        currentAzDeg = (currentAzDeg + dAz * Math.min(1, dt * 4.5) + 360) % 360;
+        currentAltDeg += (targetAltDeg - currentAltDeg) * Math.min(1, dt * 5.0);
+
+        altGroup.rotation.x = -(currentAltDeg * Math.PI) / 180;
+        azGroup.rotation.y = -(currentAzDeg * Math.PI) / 180;
+
+        // แอนิเมชั่นแยกชิ้นส่วน (Exploded View)
+        var goalExp = isExploded ? 1 : 0;
+        Object.keys(clickableParts).forEach(function (k) {
+          var part = clickableParts[k];
+          part.currentExplode += (goalExp - part.currentExplode) * 0.1;
+          part.group.position.copy(part.basePos).addScaledVector(part.explodeOffset, part.currentExplode);
+        });
+
+        // แอนิเมชั่นจุดแสงวิ่งตามเส้นทางแสงพับ 3 ทบ
+        if (isLightOn) {
+          foldPhotons.forEach(function (ph) {
+            ph.t = (ph.t + dt * 0.36) % 1;
+            ph.mesh.position.copy(samplePolyline(ph.pts, ph.t));
+          });
+        }
+
+        // แอนิเมชั่นเฉพาะขั้นตอนในแท็บ "ติดตั้ง"
+        if (currentTab === 'setup') {
+          setupState.phase += dt * setupState.speed;
+
+          // ขั้นที่ 6: ส่ายกล้องระหว่างดาวอ้างอิง 2 ดวง (2-Star Alignment)
+          if (setupState.stepIdx === 5) {
+            var blend = (Math.sin(setupState.phase * 1.1) + 1) * 0.5;
+            targetAzDeg = 120 + blend * 115;
+            targetAltDeg = 38 + blend * 24;
+            syncSlidersUI();
+          }
+
+          // ขั้นที่ 7: หมุนปุ่มปรับโฟกัสและเลื่อนกระจกปฐมภูมิเดินหน้า-ถอยหลังจริง
+          if (setupState.stepIdx === 6) {
+            focusKnobGroup.rotation.z += dt * 4.2 * setupState.speed;
+            clickableParts.primary.basePos.z = PRIMARY_Z + Math.sin(setupState.phase * 2.4) * 0.16;
+          }
+
+          // ขั้นที่ 8: สวมฝาแผ่นกรองแสงอาทิตย์ลงบนปากท่ออย่างนุ่มนวล
+          if (setupState.stepIdx === 7) {
+            clickableParts.solarFilter.basePos.z += ((Z_FRONT + 0.15) - clickableParts.solarFilter.basePos.z) * Math.min(1, dt * 3.0 * setupState.speed);
+          }
+
+          if (setupState.playing) {
+            setupState.timer += dt * setupState.speed;
+            if (setupState.timer >= 4.8) {
+              setupState.timer = 0;
+              if (setupState.stepIdx < SETUP_STEPS.length - 1) applySetupStep(setupState.stepIdx + 1);
+              else stopSetupAnimation();
+            }
+          }
+        }
+
+        updateCameraTransform();
+        renderer.render(scene, camera);
+      }
+
+      // ซ่อนหน้าจอโหลดและเริ่มเรนเดอร์
+      var loader = document.getElementById('loader-overlay');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(function () {
+          if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
+        }, 450);
+      }
+      onResize();
+      animate();
+    }
+  </script>
+</body>
+</html>
