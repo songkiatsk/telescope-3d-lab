@@ -1184,6 +1184,20 @@
       raHousing.rotation.x = Math.PI / 2;
       raAxisGroup.add(attachMesh('raAxis', raHousing));
 
+      // คอข้อต่อรูปตัว T (T-Junction) และวงแหวนลูกปืนเชื่อมแกน RA เข้ากับแกน Dec ให้แนบสนิทไม่ลอย
+      var raDecNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.34, 0.50, 28), matEQPaint);
+      raDecNeck.position.set(0, 0.24, 0.22);
+      raAxisGroup.add(attachMesh('raAxis', raDecNeck));
+
+      var raDecFlange = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.08, 28), matAnodizedBlack);
+      raDecFlange.position.set(0, 0.48, 0.22);
+      raAxisGroup.add(attachMesh('raAxis', raDecFlange));
+
+      // ปลอกรับก้านตุ้มน้ำหนักด้านล่างแกน RA
+      var cwSocket = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.20, 20), matAnodizedBlack);
+      cwSocket.position.set(0, -0.28, 0.22);
+      raAxisGroup.add(attachMesh('raAxis', cwSocket));
+
       // วงแหวนสเกล RA (Setting Circle)
       var raCircle = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.14, 28), matChrome);
       raCircle.rotation.x = Math.PI / 2;
@@ -1258,7 +1272,7 @@
       decAxisGroup.add(attachMesh('decAxis', decHousing));
 
       var decCircle = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.12, 28), matChrome);
-      decCircle.position.y = 0.02;
+      decCircle.position.y = -0.04;
       decAxisGroup.add(attachMesh('decAxis', decCircle));
 
       // แท่นรับรางประกบ (Dovetail Saddle)
