@@ -173,7 +173,15 @@
     </div>
 
     <!-- แผงข้อมูล 5 แท็บ -->
-    <aside id="info-panel" class="hidden lg:flex flex-col w-full lg:w-[395px] xl:w-[425px] h-[54vh] lg:h-full bg-[#091022]/95 border-t lg:border-t-0 lg:border-l border-slate-700/60 z-30 shrink-0 shadow-2xl">
+    <aside id="info-panel" class="hidden lg:flex flex-col w-full lg:w-[395px] xl:w-[425px] h-[38vh] lg:h-full bg-[#091022]/95 border-t lg:border-t-0 lg:border-l border-slate-700/60 z-30 shrink-0 shadow-2xl transition-all duration-200">
+      <!-- แถบควบคุมขนาดแผงสำหรับสมาร์ทโฟน (ไม่บังภาพกล้อง 3D ด้านบน) -->
+      <div class="flex lg:hidden items-center justify-between px-3 py-1.5 bg-slate-950/90 border-b border-slate-800/80 shrink-0">
+        <span class="text-[11px] font-semibold text-sky-300">📖 ข้อมูลชิ้นส่วน (หมุนดูกล้องด้านบนได้)</span>
+        <div class="flex items-center gap-1.5">
+          <button id="btn-panel-expand" type="button" class="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-200 border border-slate-700">⤢ ขยาย</button>
+          <button id="btn-panel-close-mobile" type="button" class="px-2.5 py-0.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 text-[11px] font-bold text-rose-200 border border-rose-400/40">✕ ปิด</button>
+        </div>
+      </div>
       <!-- แถบแท็บ 5 เมนู -->
       <div class="p-2 border-b border-slate-700/60 bg-slate-900/60">
         <div class="grid grid-cols-5 gap-1">
@@ -1868,19 +1876,30 @@
       // =========================================================================
       var infoPanel = document.getElementById('info-panel');
       var togglePanelLabel = document.getElementById('toggle-panel-label');
+      var bottomControls = document.getElementById('bottom-controls');
+      var btnPanelExpand = document.getElementById('btn-panel-expand');
       var panelOpen = window.innerWidth >= 1024;
+      var panelExpandedMobile = false;
 
       function syncPanelVisibility() {
+        var isMobile = window.innerWidth < 1024;
         if (panelOpen) {
           infoPanel.classList.remove('hidden');
           infoPanel.classList.add('flex');
           togglePanelLabel.textContent = 'ซ่อนแผง';
+          if (bottomControls) bottomControls.classList.toggle('hidden', isMobile);
         } else {
           infoPanel.classList.add('hidden');
           infoPanel.classList.remove('flex');
           togglePanelLabel.textContent = 'แผงข้อมูล';
+          if (bottomControls) bottomControls.classList.remove('hidden');
+          panelExpandedMobile = false;
+          infoPanel.classList.remove('h-[62vh]');
+          infoPanel.classList.add('h-[38vh]');
+          if (btnPanelExpand) btnPanelExpand.textContent = '⤢ ขยาย';
         }
-        setTimeout(onResize, 60);
+        onResize();
+        setTimeout(onResize, 80);
       }
       syncPanelVisibility();
 
@@ -1888,6 +1907,23 @@
         panelOpen = !panelOpen;
         syncPanelVisibility();
       });
+
+      if (btnPanelExpand) {
+        btnPanelExpand.addEventListener('click', function () {
+          panelExpandedMobile = !panelExpandedMobile;
+          infoPanel.classList.toggle('h-[62vh]', panelExpandedMobile);
+          infoPanel.classList.toggle('h-[38vh]', !panelExpandedMobile);
+          btnPanelExpand.textContent = panelExpandedMobile ? '⤡ ย่อ' : '⤢ ขยาย';
+          setTimeout(onResize, 220);
+        });
+      }
+      var btnPanelCloseMobile = document.getElementById('btn-panel-close-mobile');
+      if (btnPanelCloseMobile) {
+        btnPanelCloseMobile.addEventListener('click', function () {
+          panelOpen = false;
+          syncPanelVisibility();
+        });
+      }
 
       document.getElementById('btn-fullscreen').addEventListener('click', function () {
         var doc = document;
@@ -2313,6 +2349,9 @@
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
         renderer.setSize(w, h);
+        if (bottomControls) {
+          bottomControls.classList.toggle('hidden', window.innerWidth < 1024 && panelOpen);
+        }
       }
       window.addEventListener('resize', onResize);
 
